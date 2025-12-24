@@ -1,0 +1,20 @@
+# 二进制与编译产物
+tmp/
+bin/
+*.exe
+*.exe~
+
+# IDE 设置
+.idea/
+.vscode/
+*.iws
+*.iml
+
+# 依赖管理
+go.sum
+# 注意：go.mod 必须保留，但 go.sum 有些团队会忽略，建议保留。
+# 如果你想忽略 go.sum，取消下面注释：
+# go.sum
+
+# 日志文件
+*.log

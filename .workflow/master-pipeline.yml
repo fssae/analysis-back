@@ -1,0 +1,60 @@
+version: '1.0'
+name: master-pipeline
+displayName: MasterPipeline
+triggers:
+  push:
+    branches:
+      include:
+        - master
+stages:
+  - name: compile
+    displayName: 编译
+    strategy: naturally
+    trigger: auto
+    steps:
+      - step: build@golang
+        name: build_golang
+        displayName: Golang 构建
+        golangVersion: 1.23
+        commands:
+          - '# 设置Go环境变量'
+          - export GO111MODULE=on
+          - export GOPROXY=https://goproxy.cn,direct
+          - export CGO_ENABLED=0
+          - export GOOS=linux
+          - export GOARCH=amd64
+          - ''
+          - '# 下载依赖'
+          - go mod download
+          - ''
+          - '# 编译项目'
+          - go build -o classroom-analysis .
+          - ''
+          - '# 创建输出目录并复制必要文件'
+          - mkdir -p output
+          - cp classroom-analysis output/
+          - cp -r config output/
+          - ''
+          - echo "编译完成，准备触发服务器部署脚本"
+        artifacts:
+          - name: BUILD_ARTIFACT
+            path:
+              - ./output
+      - step: publish@general_artifacts
+        name: publish_general_artifacts
+        displayName: 上传制品
+        dependArtifact: BUILD_ARTIFACT
+        artifactName: output
+        dependsOn: build_golang
+  - name: deploy
+    displayName: 部署
+    strategy: naturally
+    trigger: auto
+    steps:
+      - step: deploy@general
+        name: trigger_server_deployment
+        displayName: 触发服务器部署
+        commands:
+          - '# 通过SSH直接调用服务器上的部署脚本'
+          - ssh root@82.156.64.69 "bash /root/classroom-analysis.sh 8080"
+        dependsOn: build_golang

@@ -1,0 +1,41 @@
+mongodb:
+  account: admin
+  address1: 82.156.64.69
+#  address2 : 82.156.64.69
+#  address3 : 82.156.64.69
+  port1: 27017
+#  port2: 27018
+#  port3: 27019
+#  replica: rs
+redis:
+  addr: "82.156.64.69:6379"
+  password: "zjh770910"
+minio:
+  address : "82.156.64.69"
+  port: "9000"
+  bucket : "classroom"
+  access_key: "5zTjCQ1WECXpjrlmIKKm"
+  secret_key: "5PLvbogKQNWgMnw6j62py6nYh1QJvQpMvCLVfllb"
+role:
+  id: "669ce49f0a9e64ec9889fde1"
+general:
+  password: "zjh770910"
+  jwt: "zjh770910"
+kafka:
+  address: "82.156.64.69:9092"
+  brokers: ["82.156.64.69:9092"]
+  RequestTopic: "face_analyze_request"
+  ResponseTopic: "face_analyze_response"
+  username: "admin"
+  password: "zjh770910"
+  user_admin: "zjh770910"
+  # 生产者配置
+  producer:
+    retry_max: 3
+    required_acks: "WaitForAll"
+  # 消费者配置
+  consumer:
+    group_session_timeout: 5m
+    heartbeat_interval: 10s
+    auto_offset_reset: "oldest"
+    rebalance_timeout: 5m
