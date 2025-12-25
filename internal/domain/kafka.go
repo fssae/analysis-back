@@ -3,7 +3,7 @@ package domain
 import "time"
 
 type TeacherAnalysisRequest struct {
-	ImageId             string  `form:"Id" bson:"Id" json:"Id"` // 绑定 form 数据
+	ImageId             string  `form:"imageId" bson:"imageId" json:"imageId"` // 绑定 form 数据
 	ConfidenceThreshold float64 `form:"ConfidenceThreshold" json:"ConfidenceThreshold" bson:"confidenceThreshold"`
 	//TaskId       string    `form:"taskId" bson:"taskId" json:"taskId"` //任务唯一标识
 	AnalysisType string    `form:"analysisType" bson:"analysisType" json:"analysisType"`
