@@ -12,125 +12,106 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// AnalysisDAO 继承泛型 BaseDAO
 type AnalysisDAO struct {
-	collection       *mongo.Collection
-	statusCollection *mongo.Collection
+	BaseDAO[domain.Analysis] // 嵌入 BaseDAO，直接获得基础能力
+	statusCollection         *mongo.Collection
 }
 
 func NewAnalysisDAO(db *mongo.Database) *AnalysisDAO {
 	return &AnalysisDAO{
-		collection:       db.Collection("analysis"),
+		BaseDAO:          NewBaseDAO[domain.Analysis](db, "analysis"),
 		statusCollection: db.Collection("status"),
 	}
 }
 
 // FindRecentAnalysis 查找最近的一条分析记录
 func (dao *AnalysisDAO) FindRecentAnalysis(ctx context.Context) ([]*domain.Analysis, error) {
-	var analysis []*domain.Analysis
-	cur, err := dao.collection.Find(
-		ctx,
-		bson.M{},
-		options.Find().SetSort(bson.D{{Key: "timestamp", Value: -1}}).SetLimit(5),
-	)
-	if err != nil {
-		return nil, err
-	}
-	err = cur.All(ctx, &analysis)
-	if err != nil {
-		return nil, err
-	}
-	return analysis, nil
+	// 直接复用 FindList
+	list, _, err := dao.FindList(ctx, bson.M{}, 0, 5, bson.D{{Key: "timestamp", Value: -1}})
+	return list, err
 }
+
+// FindByTeacherId 根据 TeacherID 查找
 func (dao *AnalysisDAO) FindByTeacherId(ctx context.Context, teacherId primitive.ObjectID, limit int64) ([]*domain.Analysis, error) {
-	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}).SetLimit(limit)
-	cursor, err := dao.collection.Find(ctx, bson.M{"teacherId": teacherId}, opts)
-	if err != nil {
-		return nil, err
-	}
-	err = cursor.Close(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var analyses []*domain.Analysis
-	if err = cursor.All(ctx, &analyses); err != nil {
-		return nil, err
-	}
-	return analyses, nil
+	list, _, err := dao.FindList(ctx, bson.M{"teacherId": teacherId}, 0, limit, bson.D{{Key: "createdAt", Value: -1}})
+	return list, err
 }
 
 // Create 创建分析记录
 func (dao *AnalysisDAO) Create(ctx context.Context, analysis *domain.Analysis) error {
 	analysis.Timestamp = time.Now()
-	result, err := dao.collection.InsertOne(ctx, analysis)
+	// 复用 InsertOne
+	res, err := dao.InsertOne(ctx, analysis)
 	if err != nil {
 		return err
 	}
-	analysis.Id = result.InsertedID.(primitive.ObjectID)
+	// 回填 ID
+	if oid, ok := res.InsertedID.(primitive.ObjectID); ok {
+		analysis.Id = oid
+	}
 	return nil
 }
 
-// FindById 根据ID查找分析记录
+// FindById 根据ID查找
 func (dao *AnalysisDAO) FindById(ctx context.Context, id primitive.ObjectID) (*domain.Analysis, error) {
-	var analysis domain.Analysis
-	err := dao.collection.FindOne(ctx, bson.M{"imageid": id}).Decode(&analysis)
-	if err != nil {
-		return nil, err
-	}
-	return &analysis, nil
+	// 注意：你原代码用的是 imageid 而不是 _id，这里保留原逻辑
+	return dao.FindOne(ctx, bson.M{"imageid": id})
 }
 
 // Update 更新分析记录
 func (dao *AnalysisDAO) Update(ctx context.Context, analysis *domain.Analysis) error {
 	analysis.Timestamp = time.Now()
-	_, err := dao.collection.UpdateOne(
-		ctx,
-		bson.M{"_id": analysis.Id},
-		bson.M{"$set": analysis},
-	)
+	_, err := dao.UpdateOne(ctx, bson.M{"_id": analysis.Id}, bson.M{"$set": analysis})
 	return err
 }
 
-// CountByTeacherId 统计教师的分析数量
+// CountByTeacherId 统计逻辑 (保持业务逻辑，但使用 BaseDAO 简化)
 func (dao *AnalysisDAO) CountByTeacherId(ctx context.Context) (int64, int64, int64, int64, error) {
-	//总图片数
-	totalImages, err := dao.collection.CountDocuments(ctx, bson.M{"filetype": "image"})
+	// 1. 统计图片
+	totalImages, err := dao.Count(ctx, bson.M{"filetype": "image"})
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
-	//总视频数
-	totalVideos, err := dao.collection.CountDocuments(ctx, bson.M{"filetype": "video"})
-	cursor, err := dao.collection.Find(ctx, bson.M{})
+	// 2. 统计视频
+	totalVideos, err := dao.Count(ctx, bson.M{"filetype": "video"})
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
-	//总学生数,总分析报告数
+
+	// 3. 统计人脸总数 (这里的逻辑比较重，建议未来优化为聚合查询)
+	// 为了不破坏原有逻辑，这里我们还是查出来遍历，但使用 FindList 简化写法
+	// 注意：这里 limit 传 0 表示查所有，慎用，数据量大建议用 Aggregate $sum
+	allData, _, err := dao.FindList(ctx, bson.M{}, 0, 0, nil)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+
 	totalFaces := int64(0)
-	totalDoc := int64(0)
-	for cursor.Next(ctx) {
-		var analysis domain.Analysis
-		err := cursor.Decode(&analysis)
-		if err != nil {
-			return 0, 0, 0, 0, err
-		}
+	totalDoc := int64(len(allData))
+	for _, analysis := range allData {
 		totalFaces += int64(len(analysis.Faces))
-		totalDoc++
 	}
-	return totalImages, totalVideos, totalFaces, totalDoc, err
+
+	return totalImages, totalVideos, totalFaces, totalDoc, nil
 }
 
 // GetLastAnalysisTime 获取最后分析时间
 func (dao *AnalysisDAO) GetLastAnalysisTime(ctx context.Context, teacherId primitive.ObjectID) (*time.Time, error) {
 	opts := options.FindOne().SetSort(bson.D{{Key: "createdAt", Value: -1}})
-	var analysis domain.Analysis
-	err := dao.collection.FindOne(ctx, bson.M{"teacherId": teacherId}, opts).Decode(&analysis)
+	analysis, err := dao.FindOne(ctx, bson.M{"teacherId": teacherId}, opts)
 	if err != nil {
 		return nil, err
+	}
+	if analysis == nil {
+		return nil, nil
 	}
 	return &analysis.Timestamp, nil
 }
 
+// UpdateConfig 更新配置
 func (dao *AnalysisDAO) UpdateConfig(update *domain.UpdateConfigRequest) error {
-	_, err := dao.collection.UpdateOne(
+	_, err := dao.UpdateOne(
 		context.Background(),
 		bson.M{"imageid": update.AnalysisId},
 		bson.M{"$set": bson.M{
@@ -143,6 +124,60 @@ func (dao *AnalysisDAO) UpdateConfig(update *domain.UpdateConfigRequest) error {
 	)
 	return err
 }
+
+// FindClassAnalysisList 复杂查询
+func (dao *AnalysisDAO) FindClassAnalysisList(ctx context.Context, courseName, className, startDate, endDate string, page, pageSize int) ([]*domain.Analysis, int64, error) {
+	filter := bson.M{}
+	if courseName != "" {
+		filter["courseName"] = courseName
+	}
+	if className != "" {
+		filter["className"] = className
+	}
+
+	// 抽取时间处理逻辑，保持代码整洁
+	if timeFilter := buildTimeFilter(startDate, endDate); len(timeFilter) > 0 {
+		filter["timestamp"] = timeFilter
+	}
+
+	// 一行代码搞定查询+分页+统计
+	return dao.FindList(ctx, filter, int64((page-1)*pageSize), int64(pageSize), bson.D{{Key: "timestamp", Value: -1}})
+}
+
+// buildTimeFilter 辅助函数：构建时间查询条件
+func buildTimeFilter(startDate, endDate string) bson.M {
+	timeFilter := bson.M{}
+	parseTime := func(dateStr string, endOfDay bool) (time.Time, error) {
+		layouts := []string{"2006-01-02 15:04", "2006-01-02"}
+		for _, layout := range layouts {
+			t, err := time.Parse(layout, dateStr)
+			if err == nil {
+				if endOfDay && layout == "2006-01-02" {
+					return t.Add(24 * time.Hour), nil
+				}
+				return t, nil
+			}
+		}
+		return time.Time{}, errors.New("invalid date")
+	}
+
+	if startDate != "" {
+		if t, err := parseTime(startDate, false); err == nil {
+			timeFilter["$gte"] = t
+		}
+	}
+	if endDate != "" {
+		if t, err := parseTime(endDate, true); err == nil {
+			timeFilter["$lte"] = t
+		}
+	}
+	return timeFilter
+}
+
+// =================================================================================
+// 复杂的聚合操作 (Aggregate) 无法泛型化，保留原生写法，但清理了 context
+// =================================================================================
+
 func (dao *AnalysisDAO) GetRankDao(ctx context.Context, req *domain.RankRequest) (*domain.RankItem, error) {
 	filter := bson.M{}
 	if req.CourseName != "" {
@@ -152,14 +187,10 @@ func (dao *AnalysisDAO) GetRankDao(ctx context.Context, req *domain.RankRequest)
 		filter["className"] = req.ClassName
 	}
 
-	// 更改 _id 为 className + courseName 的组合以避免重复项
 	groupID := bson.M{
 		"className":  "$className",
 		"courseName": "$courseName",
 	}
-
-	sortField := "avgFocusScore"
-	sortOrder := -1
 
 	pipeline := mongo.Pipeline{
 		{{"$match", filter}},
@@ -172,15 +203,12 @@ func (dao *AnalysisDAO) GetRankDao(ctx context.Context, req *domain.RankRequest)
 			"timestamp":     bson.M{"$first": "$timestamp"},
 			"resultUrl":     bson.M{"$first": "$result_url"},
 		}}},
-		// 添加数值精度控制阶段
 		{{"$addFields", bson.M{
-			"avgFocusScore": bson.M{
-				"$round": []interface{}{"$avgFocusScore", 2},
-			},
+			"avgFocusScore": bson.M{"$round": []interface{}{"$avgFocusScore", 2}},
 		}}},
 		{{"$facet", bson.M{
 			"data": []bson.M{
-				{"$sort": bson.D{{Key: sortField, Value: sortOrder}}},
+				{"$sort": bson.D{{Key: "avgFocusScore", Value: -1}}},
 				{"$skip": int64((req.Page - 1) * req.PageSize)},
 				{"$limit": int64(req.PageSize)},
 			},
@@ -190,128 +218,52 @@ func (dao *AnalysisDAO) GetRankDao(ctx context.Context, req *domain.RankRequest)
 		}}},
 	}
 
-	cursor, err := dao.collection.Aggregate(ctx, pipeline)
+	// 使用 dao.Coll 直接访问原生 collection
+	cursor, err := dao.Coll.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
 	defer cursor.Close(ctx)
 
+	// 定义临时结构体接收结果
 	var facetResult []struct {
 		Data []struct {
-			ID         interface{} `bson:"_id"`
-			ClassName  string      `bson:"className"`
-			CourseName string      `bson:"courseName"`
-			FocusAvg   float64     `bson:"avgFocusScore"`
+			ClassName  string  `bson:"className"`
+			CourseName string  `bson:"courseName"`
+			FocusAvg   float64 `bson:"avgFocusScore"`
 		} `bson:"data"`
 		Total []struct {
 			Count int64 `bson:"count"`
 		} `bson:"total"`
 	}
+
 	if err := cursor.All(ctx, &facetResult); err != nil {
 		return nil, err
 	}
 
-	var total int64
-	var list []*domain.Rank
+	result := &domain.RankItem{List: []*domain.Rank{}, Total: 0}
 	if len(facetResult) > 0 {
 		if len(facetResult[0].Total) > 0 {
-			total = facetResult[0].Total[0].Count
+			result.Total = facetResult[0].Total[0].Count
 		}
 		for _, d := range facetResult[0].Data {
-			list = append(list, &domain.Rank{
+			result.List = append(result.List, &domain.Rank{
 				ClassName:  d.ClassName,
 				CourseName: d.CourseName,
 				FocusAvg:   d.FocusAvg,
 			})
 		}
 	}
-	return &domain.RankItem{
-		List:  list,
-		Total: total,
-	}, nil
+	return result, nil
 }
 
-// FindClassAnalysisList 条件分页查询班级分析
-// FindClassAnalysisList 条件分页查询班级分析
-func (dao *AnalysisDAO) FindClassAnalysisList(ctx context.Context, courseName, className, startDate, endDate string, page, pageSize int) ([]*domain.Analysis, int64, error) {
-	filter := bson.M{}
-	if courseName != "" {
-		filter["courseName"] = courseName
-	}
-	if className != "" {
-		filter["className"] = className
-	}
-
-	// 修改时间过滤逻辑以支持精确到分钟
-	if startDate != "" || endDate != "" {
-		timeFilter := bson.M{}
-		if startDate != "" {
-			// 支持两种格式：日期格式和日期时间格式
-			var t time.Time
-			var err error
-
-			// 首先尝试解析完整的时间格式(包含小时分钟)
-			t, err = time.Parse("2006-01-02 15:04", startDate)
-			if err != nil {
-				// 如果失败，则尝试解析仅日期格式
-				t, err = time.Parse("2006-01-02", startDate)
-			}
-			if err == nil {
-				timeFilter["$gte"] = t
-			}
-		}
-		if endDate != "" {
-			// 支持两种格式：日期格式和日期时间格式
-			var t time.Time
-			var err error
-
-			// 首先尝试解析完整的时间格式(包含小时分钟)
-			t, err = time.Parse("2006-01-02 15:04", endDate)
-			if err != nil {
-				// 如果失败，则尝试解析仅日期格式，并加一天
-				t, err = time.Parse("2006-01-02", endDate)
-				if err == nil {
-					t = t.Add(24 * time.Hour)
-				}
-			}
-			if err == nil {
-				timeFilter["$lte"] = t
-			}
-		}
-		if len(timeFilter) > 0 {
-			filter["timestamp"] = timeFilter
-		}
-	}
-
-	findOptions := options.Find().SetSort(bson.D{{Key: "timestamp", Value: -1}}).SetSkip(int64((page - 1) * pageSize)).SetLimit(int64(pageSize))
-	cursor, err := dao.collection.Find(ctx, filter, findOptions)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer cursor.Close(ctx)
-	var analyses []*domain.Analysis
-	if err = cursor.All(ctx, &analyses); err != nil {
-		return nil, 0, err
-	}
-	total, err := dao.collection.CountDocuments(ctx, filter)
-	if err != nil {
-		return nil, 0, err
-	}
-	return analyses, total, nil
-}
-
-// InsertAvg 计算指定 taskId 的 faces 平均专注度并更新到数据库
 func (dao *AnalysisDAO) InsertAvg(taskId string) error {
-	// 定义聚合管道
 	pipeline := mongo.Pipeline{
-		// 匹配条件：taskId 和存在 faces 字段
 		{{"$match", bson.M{
-			"Id":    taskId,
+			"Id":    taskId, // 注意：这里匹配的是 Id 字段，请确保数据库字段名一致
 			"faces": bson.M{"$exists": true, "$ne": []interface{}{}},
 		}}},
-		// 展开 faces 数组
 		{{"$unwind", "$faces"}},
-		// 按 imageId 分组，计算每个 image 的平均专注度
 		{{"$group", bson.M{
 			"_id":           "$taskId",
 			"className":     bson.M{"$first": "$className"},
@@ -320,28 +272,27 @@ func (dao *AnalysisDAO) InsertAvg(taskId string) error {
 			"timestamp":     bson.M{"$first": "$timestamp"},
 			"resultUrl":     bson.M{"$first": "$result_url"},
 		}}},
-		// 更新原集合中的文档
 		{{"$merge", bson.M{
 			"into":           "analysis",
-			"whenMatched":    "merge",   // 合并字段而不是替换
-			"whenNotMatched": "discard", // 不匹配时不插入新文档
+			"whenMatched":    "merge",
+			"whenNotMatched": "discard",
 		}}},
 	}
 
-	// 执行聚合操作
-	cursor, err := dao.collection.Aggregate(context.Background(), pipeline)
+	cursor, err := dao.Coll.Aggregate(context.Background(), pipeline)
 	if err != nil {
 		return err
 	}
+	// 聚合操作不需要 decode，close 即可
 	defer cursor.Close(context.Background())
-
-	// 等待操作完成
-	return cursor.Err()
+	return nil
 }
 
-// UpdateStatus 更新任务状态
+// =================================================================================
+// Status 相关操作 (涉及另一个 Collection，无法使用 BaseDAO，手动实现)
+// =================================================================================
+
 func (dao *AnalysisDAO) UpdateStatus(update *domain.UpdateStatus) error {
-	//task_status
 	filter := bson.M{"imageId": update.TaskId, "teacherId": update.TeacherId}
 	updateDoc := bson.M{
 		"$set": bson.M{
@@ -352,20 +303,18 @@ func (dao *AnalysisDAO) UpdateStatus(update *domain.UpdateStatus) error {
 			"updatedAt":           time.Now(),
 		},
 	}
-	// 使用upsert确保如果任务不存在则创建
 	opts := options.Update().SetUpsert(true)
 	_, err := dao.statusCollection.UpdateOne(context.Background(), filter, updateDoc, opts)
 	return err
 }
 
-// GetTaskStatus 获取任务状态
 func (dao *AnalysisDAO) GetTaskStatus(ctx context.Context, taskId string) (*domain.UpdateStatus, error) {
-	filter := bson.M{"taskId": taskId}
 	var status domain.UpdateStatus
-	err := dao.collection.FindOne(ctx, filter).Decode(&status)
+	// 手动调用 statusCollection
+	err := dao.statusCollection.FindOne(ctx, bson.M{"taskId": taskId}).Decode(&status)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, nil // 任务不存在
+			return nil, nil
 		}
 		return nil, err
 	}

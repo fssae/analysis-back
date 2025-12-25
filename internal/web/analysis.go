@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -29,6 +30,7 @@ func (h *TeacherHandler) Analyze(c *gin.Context) {
 		return
 	}
 	status, _ := h.redis.Get(c, req.ImageId).Result()
+	log.Printf("%v", status)
 	if status == "STATUS_PROCESSING" {
 		//计数器
 		domain.IdempotentInterceptTotal.Inc()
