@@ -5,11 +5,9 @@ import (
 	"classroom-analysis/internal/events"
 	"context"
 	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
-func (h *TeacherHandler) ReadKafka(c *gin.Context, imageId string) (<-chan *domain.KafkaResp, context.Context, context.CancelFunc, error) {
+func (h *TeacherHandler) ReadKafka(c context.Context, imageId string) (<-chan *domain.KafkaResp, context.Context, context.CancelFunc, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	resultChan := events.GlobalWaiter.Register(imageId)
 	// 3. 自动清理逻辑：如果超时了，把 Map 里的 channel 删掉防止内存泄漏

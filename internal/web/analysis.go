@@ -3,6 +3,7 @@ package web
 import (
 	"classroom-analysis/internal/domain"
 	"classroom-analysis/internal/util"
+	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -61,7 +62,7 @@ func (h *TeacherHandler) Analyze(c *gin.Context) {
 
 	// 异步分析任务，传递教师ID
 
-	go h.performAnalysisAsync(c, req, teacherClaims.Id)
+	go h.performAnalysisAsync(context.Background(), req, teacherClaims.Id)
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"code": 202,
@@ -224,7 +225,7 @@ func (h *TeacherHandler) GetClassAnalysis(c *gin.Context) {
 }
 
 // performAnalysisAsync 异步执行分析任务，不返回HTTP响应
-func (h *TeacherHandler) performAnalysisAsync(c *gin.Context, req domain.TeacherAnalysisRequest, teacherId primitive.ObjectID) {
+func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.TeacherAnalysisRequest, teacherId primitive.ObjectID) {
 	// 使用结构化日志
 	h.logger.Info("开始异步分析",
 		zap.String("analysisType", req.AnalysisType),
@@ -376,5 +377,5 @@ func (h *TeacherHandler) HandleAnalysisWebSocket(c *gin.Context) {
 		return
 	}
 	//通过token获取教师id
-	wsManager.HandleConnection(claims.Id, c.Writer, c.Request)
+	wsManager.HandleConnection(claims.TeacherId, c.Writer, c.Request)
 }

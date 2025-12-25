@@ -1,55 +1,28 @@
 package web
 
 import (
+	"classroom-analysis/internal/domain"
+	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // Client 封装 WebSocket 连接，解决并发写入问题
 type Client struct {
+	Hub  *AnalysisWSManager
 	Conn *websocket.Conn
-	// 写锁：确保 Ping 和 业务消息不会并发写入导致 Panic
-	mu     sync.Mutex
+	//灰度测试pump
+	send   chan []byte
 	TaskID string
 }
-
-// 线程安全的发送方法
-func (c *Client) SafeWriteJSON(v interface{}) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	return c.Conn.WriteJSON(v)
-}
-
-// 线程安全的发送文本方法
-func (c *Client) SafeWriteMessage(messageType int, data []byte) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	return c.Conn.WriteMessage(messageType, data)
-}
-
 type AnalysisWSManager struct {
-	// 改变值类型为 *Client
 	clients  map[string]*Client
 	mutex    sync.RWMutex
 	upgrader websocket.Upgrader
-}
-
-// ... AnalysisStatusMessage 保持不变 ...
-type AnalysisStatusMessage struct {
-	Type      string `json:"type"`
-	TaskID    string `json:"taskId"`
-	Status    string `json:"status"`
-	Message   string `json:"message,omitempty"`
-	ResultURL string `json:"resultUrl,omitempty"`
-	Error     string `json:"error,omitempty"`
-	Timestamp int64  `json:"timestamp"`
 }
 
 var analysisWSManager *AnalysisWSManager
@@ -64,142 +37,155 @@ func init() {
 		},
 	}
 }
-
 func GetAnalysisWSManager() *AnalysisWSManager {
 	return analysisWSManager
 }
 
-func (m *AnalysisWSManager) HandleConnection(teacherId primitive.ObjectID, w http.ResponseWriter, r *http.Request) {
-	if teacherId == primitive.NilObjectID {
-		http.Error(w, "缺少taskId参数", http.StatusBadRequest)
-		return
-	}
-
+// HandleConnection 处理连接的核心入口
+func (m *AnalysisWSManager) HandleConnection(taskId string, w http.ResponseWriter, r *http.Request) {
 	conn, err := m.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("WebSocket升级失败: %v", err)
 		return
 	}
 
-	taskID := teacherId.Hex()
-
-	// 创建封装的 Client 对象
+	// 创建 Client 对象
 	client := &Client{
+		Hub:    m,
 		Conn:   conn,
-		TaskID: taskID,
+		TaskID: taskId,
+		send:   make(chan []byte, 256), // 256 是缓冲大小
 	}
 
-	// 注册
+	// 1. 注册 (清理旧连接)
 	m.registerClient(client)
 
-	// 启动保活循环 (阻塞直到连接断开)
-	m.keepAlive(client)
+	// 2. 启动写协程 (WritePump)
+	// 专门负责把 send channel 里的数据和 Ping 写给客户端
+	go client.writePump()
 
-	// 循环结束意味着连接断开，执行清理
-	m.unregisterClient(client)
+	// 3. 启动读协程 (ReadPump)
+	// 专门负责处理 Pong 和检测连接断开。
+	// 注意：这里我们让 ReadPump 阻塞当前函数，直到连接断开。
+	// 这样当连接断开时，HandleConnection 才会返回。
+	client.readPump()
 }
 
-func (m *AnalysisWSManager) registerClient(newClient *Client) {
+func (m *AnalysisWSManager) registerClient(client *Client) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	taskID := newClient.TaskID
+	taskID := client.TaskID
 
-	// 处理旧连接：如果有旧连接，关闭它
+	// 处理旧连接
 	if oldClient, exists := m.clients[taskID]; exists {
-		log.Printf("任务 %s 检测到旧连接，正在关闭...", taskID)
-		// 尝试发送关闭消息（尽力而为，不阻塞）
-		go func(c *Client) {
-			c.SafeWriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "被新连接替换"))
-			c.Conn.Close()
-		}(oldClient)
+		log.Printf("任务 %s 检测到旧连接，正在断开旧连接...", taskID)
+		//触发 oldClient.writePump 中的 !ok 分支,
+		//发送 CloseMessage 关闭 TCP 连接
+		close(oldClient.send)
+		delete(m.clients, taskID)
 	}
 
-	m.clients[taskID] = newClient
+	// 注册新连接
+	m.clients[taskID] = client
 	log.Printf("任务 %s 的WebSocket连接已注册", taskID)
 
-	// 发送欢迎消息 (现在是线程安全的，不需要 sleep)
-	go func() {
-		m.SendTaskStatusUpdate(taskID, "200", "连接已注册", "", "")
-	}()
+	// 发送欢迎消息
+	select {
+	case client.send <- []byte("{\"type\":\"analysis\",\"status\":\"200\",\"message\":\"连接已注册\"}"):
+	default:
+	}
 }
 
 func (m *AnalysisWSManager) unregisterClient(client *Client) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	// 只有当 map 里的连接就是当前要注销的连接时才删除
-	// 防止删除了已经被新连接替换掉的记录
+	// 双重检查：确保我们要删除的确实是 map 里存的那个对象
+	// 防止：新连接刚注册(registerClient)，旧连接的 readPump 此时断开触发注销，
+	// 如果不检查，旧连接可能会误删新连接的记录。
 	if currentClient, exists := m.clients[client.TaskID]; exists && currentClient == client {
 		delete(m.clients, client.TaskID)
-		client.Conn.Close() // 确保关闭
+
+		// 【关键修改】：关闭通道，通知 writePump 退出
+		close(client.send)
+
 		log.Printf("任务 %s 的WebSocket连接已注销", client.TaskID)
 	}
 }
-
-// 保持连接活跃 (Read Loop + Write Ticker)
-func (m *AnalysisWSManager) keepAlive(client *Client) {
-	// 设置 Pong 处理
-	client.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-	client.Conn.SetPongHandler(func(string) error {
-		client.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+func (c *Client) readPump() {
+	defer c.Hub.unregisterClient(c)
+	c.Conn.SetReadLimit(512)
+	c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	//设置 Pong 处理器
+	c.Conn.SetPongHandler(func(string) error {
+		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
+	for {
+		_, _, err := c.Conn.ReadMessage()
+		if err != nil {
+			break
+		}
+	}
 
-	// 启动 Ping Ticker
+}
+func (c *Client) writePump() {
 	ticker := time.NewTicker(20 * time.Second)
-	defer ticker.Stop()
+	defer func() {
+		ticker.Stop()
+		c.Conn.Close()
+	}()
 
-	// 用一个 channel 通知 write loop 停止
-	done := make(chan struct{})
+	for {
+		select {
+		case message, ok := <-c.send:
+			c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if !ok {
+				// Channel 被关闭，发送 Close 帧
+				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
 
-	// 1. 启动 Ping 发送协程
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				// 这里使用了 SafeWriteMessage，加了锁，不再会 Panic
-				// 建议使用标准的 PingMessage 而不是 TextMessage ("ping")
-				// 如果前端必须用文本 "ping"，请保留 websocket.TextMessage
-				// 这里我演示标准做法：
-				if err := client.SafeWriteMessage(websocket.PingMessage, nil); err != nil {
-					return // 写入失败，退出
-				}
-			case <-done:
+			// 获取 Writer
+			w, err := c.Conn.NextWriter(websocket.TextMessage)
+			if err != nil {
+				return
+			}
+
+			// 写入消息
+			w.Write(message)
+
+			// 【修改点】：删除 "for i < n" 的合并循环
+			// 确保每一条 send 消息对应前端一个 onmessage 事件，兼容 JSON.parse
+
+			// 关闭 Writer，发送当前帧
+			if err := w.Close(); err != nil {
+				return
+			}
+
+		case <-ticker.C:
+			c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
 		}
-	}()
-
-	// 2. 主循环作为 Read Loop
-	for {
-		// 阻塞读取，如果出错或连接关闭，会从这里返回
-		_, _, err := client.Conn.ReadMessage()
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("任务 %s 连接异常关闭: %v", client.TaskID, err)
-			}
-			break // 退出 Read Loop
-		}
-		// 如果是 TextMessage 的心跳，可以在这里处理
-		// 但使用标准 Ping/Pong 机制，ReadMessage 会自动处理 Pong，不需要手动写逻辑
 	}
-
-	// Read Loop 结束后，通知 Ping 协程退出
-	close(done)
 }
 
+// SendTaskStatusUpdate: 对外暴露的方法
 func (m *AnalysisWSManager) SendTaskStatusUpdate(taskID, status, message, resultURL, errorMsg string) {
+	// 1. 获取连接对象
 	m.mutex.RLock()
 	client, exists := m.clients[taskID]
 	m.mutex.RUnlock()
 
 	if !exists {
-		// log.Printf("任务 %s 无活跃连接，跳过推送", taskID)
 		return
 	}
 
-	msg := AnalysisStatusMessage{
+	// 2. 构造消息
+	msg := domain.AnalysisStatusMessage{
 		Type:      "analysis",
 		TaskID:    taskID,
 		Status:    status,
@@ -209,11 +195,19 @@ func (m *AnalysisWSManager) SendTaskStatusUpdate(taskID, status, message, result
 		Timestamp: time.Now().Unix(),
 	}
 
-	// 调用线程安全的写方法
-	if err := client.SafeWriteJSON(msg); err != nil {
-		log.Printf("发送消息到任务 %s 失败: %v", taskID, err)
-		// 发送失败通常意味着连接断了，unregisterClient 会在 handleConnection 退出时自动处理
-		// 或者在这里主动关闭连接也可以触发清理
-		client.Conn.Close()
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("JSON序列化失败: %v", err)
+		return
+	}
+
+	// 3发送到 Channel
+	select {
+	case client.send <- data:
+		// 发送成功
+	default:
+		// Channel 满了（客户端阻塞），断开连接防止服务器内存泄漏
+		log.Printf("任务 %s 客户端阻塞，断开连接", taskID)
+		m.unregisterClient(client)
 	}
 }
