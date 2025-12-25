@@ -7,8 +7,9 @@ import (
 )
 
 type Analysis struct {
-	Id           primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
-	ImageId      primitive.ObjectID `json:"imageid" bson:"imageid"`
+	Id primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
+	// 保持与前端 FormData 传参一致的 JSON 标签
+	ImageId      primitive.ObjectID `json:"imageId" bson:"imageid"`
 	Faces        []FaceAnalysis     `json:"faces" bson:"faces"`
 	ResultUrl    string             `json:"resultUrl" bson:"result_url"`
 	Timestamp    time.Time          `json:"timestamp" bson:"timestamp"`
@@ -16,8 +17,8 @@ type Analysis struct {
 	ClassName    string             `json:"className" bson:"className"`
 	CourseName   string             `json:"courseName" bson:"courseName"`
 	Description  string             `json:"description" bson:"description"`
-	FileName     string             `json:"filename" bson:"filename"`
-	FileType     string             `json:"filetype" bson:"filetype"`
+	FileName     string             `json:"fileName" bson:"filename"` // 建议大写N
+	FileType     string             `json:"fileType" bson:"filetype"` // 建议大写T
 }
 type AnalysisResult struct {
 	AvgFocus           float64 `json:"avgFocus"`
