@@ -23,6 +23,7 @@ func (h *TeacherHandler) Analyze(c *gin.Context) {
 		})
 		return
 	}
+	log.Printf("imageId:%v", req.ImageId)
 	if req.Url == "" || req.ImageId == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code": 400,
