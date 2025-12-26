@@ -4,6 +4,7 @@ import "time"
 
 type TeacherAnalysisRequest struct {
 	ImageId string `form:"imageId" json:"imageId" bson:"imageId"`
+	TaskId  string `form:"taskId" json:"taskId" bson:"taskId"`
 	// 修正：首字母改为小写 c
 	ConfidenceThreshold float64 `form:"confidenceThreshold" json:"confidenceThreshold" bson:"confidenceThreshold"`
 	AnalysisType        string  `form:"analysisType" json:"analysisType" bson:"analysisType"`
@@ -14,6 +15,7 @@ type TeacherAnalysisRequest struct {
 	Description string    `form:"description" json:"description" bson:"description"`
 	Timestamp   time.Time `form:"timestamp" json:"timestamp" bson:"timestamp"`
 }
+
 type KafkaMessage struct {
 	Req TeacherAnalysisRequest `json:"req" bson:"req"`
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	"log"
@@ -237,6 +238,9 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 
 	// 获取WebSocket管理器
 	wsManager := GetAnalysisWSManager()
+	//创建唯一taskId
+	kafkaTaskId := uuid.New().String()
+	req.TaskId = kafkaTaskId
 	message := domain.KafkaMessage{
 		Req: req,
 	}
