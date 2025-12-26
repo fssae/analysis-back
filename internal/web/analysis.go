@@ -43,28 +43,18 @@ func (h *TeacherHandler) Analyze(c *gin.Context) {
 		})
 		return
 	}
-	// 从JWT claims中获取教师ID
-	claims, exists := c.Get("claims")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code": 401,
-			"msg":  "未找到用户认证信息",
-		})
-		return
-	}
-
-	teacherClaims, ok := claims.(domain.TeacherClaims)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code": 401,
-			"msg":  "用户认证信息格式错误",
+	claims, err := util.GetClaims(c)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"code": 200,
+			"msg":  fmt.Sprintf("请重新登录"),
 		})
 		return
 	}
 
 	// 异步分析任务，传递教师ID
 
-	go h.performAnalysisAsync(context.Background(), req, teacherClaims.Id)
+	go h.performAnalysisAsync(context.Background(), req, claims.TeacherId)
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"code": 202,
@@ -227,7 +217,7 @@ func (h *TeacherHandler) GetClassAnalysis(c *gin.Context) {
 }
 
 // performAnalysisAsync 异步执行分析任务，不返回HTTP响应
-func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.TeacherAnalysisRequest, teacherId primitive.ObjectID) {
+func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.TeacherAnalysisRequest, teacherId string) {
 	// 使用结构化日志
 	h.logger.Info("开始异步分析",
 		zap.String("analysisType", req.AnalysisType),
@@ -245,13 +235,12 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 		Req: req,
 	}
 	taskId := req.ImageId
-	teacherIdStr := teacherId.Hex()
 	// 检查kafkaWriter是否为nil
 	if h.kafkaWriter == nil {
 		err := fmt.Errorf("kafkaWriter未初始化")
 		h.logger.Error("kafkaWriter为nil", zap.Error(err))
 		h.updateTaskStatus(taskId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
-		wsManager.SendTaskStatusUpdate(teacherIdStr, "error", "分析失败", "nil", err.Error())
+		wsManager.SendTaskStatusUpdate(teacherId, "error", "分析失败", "nil", err.Error())
 		return
 	}
 
@@ -262,16 +251,16 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 			zap.Error(err),
 			zap.Any("message", message))
 		h.updateTaskStatus(taskId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
-		wsManager.SendTaskStatusUpdate(teacherIdStr, "error", "分析失败", "nil", err.Error())
+		wsManager.SendTaskStatusUpdate(teacherId, "error", "分析失败", "nil", err.Error())
 		return
 	}
-	wsManager.SendTaskStatusUpdate(teacherIdStr, "已传入Kafka消息", "异步分析中...", "nil", "nil")
+	wsManager.SendTaskStatusUpdate(teacherId, "已传入Kafka消息", "异步分析中...", "nil", "nil")
 	// 读取结果，传入imageId用于消息匹配
 	resultChan, ctx, cancel, err := h.ReadKafka(c, req.ImageId)
 	if err != nil {
 		fmt.Printf("收到空响应: %v\n", err)
 		h.updateTaskStatus(taskId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
-		wsManager.SendTaskStatusUpdate(teacherIdStr, "创建Kafka消费者失败", "分析失败", "nil", "nil")
+		wsManager.SendTaskStatusUpdate(teacherId, "创建Kafka消费者失败", "分析失败", "nil", "nil")
 		return
 	}
 	//wsManager.SendTaskStatusUpdate(taskId, "test", "test", "nil", "test")
@@ -280,7 +269,7 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 	case resp := <-resultChan:
 		if resp == nil {
 			h.updateTaskStatus(taskId, "error", "", "收到空响应", teacherId, req.ConfidenceThreshold)
-			wsManager.SendTaskStatusUpdate(teacherIdStr, "收到空响应", "分析失败", "nil", "响应为空")
+			wsManager.SendTaskStatusUpdate(teacherId, "收到空响应", "分析失败", "nil", "响应为空")
 			return
 		}
 		//分析完成，幂等处理
@@ -291,15 +280,15 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 		}
 		//上传status，email,计算平均专注度
 		h.updateTaskStatus(taskId, "completed", resultURL, "", teacherId, req.ConfidenceThreshold)
-		wsManager.SendTaskStatusUpdate(teacherIdStr, "completed", "分析成功", resultURL, "")
+		wsManager.SendTaskStatusUpdate(teacherId, "completed", "分析成功", resultURL, "")
 	case <-ctx.Done():
 		h.updateTaskStatus(taskId, "timeout", "", ctx.Err().Error(), teacherId, req.ConfidenceThreshold)
-		wsManager.SendTaskStatusUpdate(teacherIdStr, "超时", "分析失败", "nil", ctx.Err().Error())
+		wsManager.SendTaskStatusUpdate(teacherId, "超时", "分析失败", "nil", ctx.Err().Error())
 	}
 }
 
 // updateTaskStatus 更新任务状态到数据库
-func (h *TeacherHandler) updateTaskStatus(imageId, status, resultUrl, errorMsg string, teacherId primitive.ObjectID, confidenceThreshold float64) {
+func (h *TeacherHandler) updateTaskStatus(imageId, status, resultUrl, errorMsg string, teacherId string, confidenceThreshold float64) {
 	h.logger.Info("更新任务状态",
 		zap.String("imageId", imageId),
 		zap.String("status", status),
@@ -316,7 +305,6 @@ func (h *TeacherHandler) updateTaskStatus(imageId, status, resultUrl, errorMsg s
 	}
 
 	updateStatus := domain.UpdateStatus{
-		TeacherId:           teacherId, // 使用传入的教师ID
 		TaskId:              imageId,
 		ConfidenceThreshold: confidenceThreshold,
 		Status:              status,
