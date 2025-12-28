@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/spf13/viper"
@@ -48,7 +47,7 @@ func (s *TeacherService) Login(ctx context.Context, req *domain.TeacherLoginRequ
 		return nil, errors.New("工号或密码错误")
 	}
 	// 生成JWT
-	tokenString, err := createToken(teacher.Id, teacher.TeacherId)
+	tokenString, err := createToken(teacher)
 	return &domain.TeacherLoginResponse{
 		Token:   tokenString,
 		Teacher: teacher,
@@ -287,17 +286,9 @@ func (s *TeacherService) GetClassAnalysisList(
 	return s.analysisRepo.GetClassAnalysisList(ctx, courseName, className, startDate, endDate, page, pageSize)
 }
 
-func createToken(Id primitive.ObjectID, teacherId string) (tokenString string, err error) {
+func createToken(teacher *domain.Teacher) (tokenString string, err error) {
 	secret := viper.GetString("general.jwt")
-	claims := domain.TeacherClaims{
-		//设置参数
-		RegisteredClaims: jwt.RegisteredClaims{
-			//设置300天的过期时间
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24 * 300)),
-		},
-		Id:        Id,
-		TeacherId: teacherId,
-	}
+	claims := domain.NewTeacherClaims(teacher)
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	//加密
 	tokenStr, err := token.SignedString([]byte(secret))

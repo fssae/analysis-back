@@ -9,9 +9,8 @@ import (
 
 // TeacherClaims 教师JWT Claims
 type TeacherClaims struct {
-	TeacherId string             `json:"teacherId"`
 	Id        primitive.ObjectID `json:"id"`
-	Name      string             `json:"name"`
+	TeacherId string             `json:"teacherId"`
 	jwt.RegisteredClaims
 }
 
@@ -20,9 +19,8 @@ func NewTeacherClaims(teacher *Teacher) *TeacherClaims {
 	return &TeacherClaims{
 		TeacherId: teacher.TeacherId,
 		Id:        teacher.Id,
-		Name:      teacher.Name,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(300 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 		},

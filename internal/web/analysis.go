@@ -78,7 +78,7 @@ func (h *TeacherHandler) Analyze(c *gin.Context) {
 	}
 
 	// 异步分析任务，传递教师ID
-	go h.performAnalysisAsync(context.Background(), req, claims.Id)
+	go h.performAnalysisAsync(context.Background(), req, claims)
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"code": 202,
@@ -241,7 +241,7 @@ func (h *TeacherHandler) GetClassAnalysis(c *gin.Context) {
 }
 
 // performAnalysisAsync 异步执行分析任务，不返回HTTP响应
-func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.TeacherAnalysisRequest, teacherId primitive.ObjectID) {
+func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.TeacherAnalysisRequest, claims *domain.TeacherClaims) {
 	// 使用结构化日志
 	h.logger.Info("开始异步分析",
 		zap.String("analysisType", req.AnalysisType),
@@ -249,22 +249,22 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 		zap.String("url", req.Url),
 		zap.String("className", req.ClassName),
 		zap.String("courseName", req.CourseName))
-
 	// 获取WebSocket管理器
 	wsManager := GetAnalysisWSManager()
-	//创建唯一taskId
 	kafkaTaskId := uuid.New().String()
 	req.TaskId = kafkaTaskId
 	message := domain.KafkaMessage{
 		Req: req,
 	}
+	teacherId := claims.Id
+	wsId := claims.TeacherId
 	taskId := req.ImageId
 	// 检查kafkaWriter是否为nil
 	if h.kafkaWriter == nil {
 		err := fmt.Errorf("kafkaWriter未初始化")
 		h.logger.Error("kafkaWriter为nil", zap.Error(err))
 		h.updateTaskStatus(taskId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
-		wsManager.SendTaskStatusUpdate(teacherId, "error", "分析失败", "nil", err.Error())
+		wsManager.SendTaskStatusUpdate(wsId, "error", "分析失败", "nil", err.Error())
 		return
 	}
 
@@ -275,25 +275,25 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 			zap.Error(err),
 			zap.Any("message", message))
 		h.updateTaskStatus(taskId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
-		wsManager.SendTaskStatusUpdate(teacherId, "error", "分析失败", "nil", err.Error())
+		wsManager.SendTaskStatusUpdate(wsId, "error", "分析失败", "nil", err.Error())
 		return
 	}
-	wsManager.SendTaskStatusUpdate(teacherId, "已传入Kafka消息", "异步分析中...", "nil", "nil")
+	wsManager.SendTaskStatusUpdate(wsId, "已传入Kafka消息", "异步分析中...", "nil", "nil")
 	// 读取结果，传入imageId用于消息匹配
 	resultChan, ctx, cancel, err := h.ReadKafka(c, req.ImageId)
 	if err != nil {
 		fmt.Printf("收到空响应: %v\n", err)
 		h.updateTaskStatus(taskId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
-		wsManager.SendTaskStatusUpdate(teacherId, "创建Kafka消费者失败", "分析失败", "nil", "nil")
+		wsManager.SendTaskStatusUpdate(wsId, "创建Kafka消费者失败", "分析失败", "nil", "nil")
 		return
 	}
-	//wsManager.SendTaskStatusUpdate(taskId, "test", "test", "nil", "test")
+	//wsManager.SendTaskStatusUpdate(wsIdtest", "test", "nil", "test")
 	defer cancel()
 	select {
 	case resp := <-resultChan:
 		if resp == nil {
 			h.updateTaskStatus(taskId, "error", "", "收到空响应", teacherId, req.ConfidenceThreshold)
-			wsManager.SendTaskStatusUpdate(teacherId, "收到空响应", "分析失败", "nil", "响应为空")
+			wsManager.SendTaskStatusUpdate(wsId, "收到空响应", "分析失败", "nil", "响应为空")
 			return
 		}
 		//分析完成，幂等处理
@@ -304,10 +304,10 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 		}
 		//上传status，email,计算平均专注度
 		h.updateTaskStatus(taskId, "completed", resultURL, "", teacherId, req.ConfidenceThreshold)
-		wsManager.SendTaskStatusUpdate(teacherId, "completed", "分析成功", resultURL, "")
+		wsManager.SendTaskStatusUpdate(wsId, "completed", "分析成功", resultURL, "")
 	case <-ctx.Done():
 		h.updateTaskStatus(taskId, "timeout", "", ctx.Err().Error(), teacherId, req.ConfidenceThreshold)
-		wsManager.SendTaskStatusUpdate(teacherId, "超时", "分析失败", "nil", ctx.Err().Error())
+		wsManager.SendTaskStatusUpdate(wsId, "超时", "分析失败", "nil", ctx.Err().Error())
 	}
 }
 
