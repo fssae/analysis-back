@@ -53,7 +53,7 @@ func (s *AnalysisService) GetStatus(ctx context.Context, taskId string) ([]*doma
 	return s.analysisTaskRepo.GetStatus(ctx, taskId)
 }
 
-// AnalyzeVideo 分析视频
+// AnalyzeVideo 分析视频 (Legacy/Mock)
 func (s *AnalysisService) AnalyzeVideo(ctx context.Context, fileName, fileType string) (*domain.Analysis, error) {
 	analysis := &domain.Analysis{
 		FileName:  fileName,
@@ -90,6 +90,61 @@ func (s *AnalysisService) processVideoAnalysis(ctx context.Context, analysis *do
 	s.analysisRepo.Update(ctx, analysis)
 }
 
+// MockAnalyzeImage 模拟图片分析（当 Kafka 不可用时）
+func (s *AnalysisService) MockAnalyzeImage(ctx context.Context, imageId string, teacherIdStr string, threshold float64) {
+	tid, _ := primitive.ObjectIDFromHex(teacherIdStr)
+
+	// 1. 设置状态为处理中
+	s.UpdateStatus(&domain.UpdateStatus{
+		TaskId:              imageId,
+		Status:              "processing",
+		TeacherId:           tid,
+		ConfidenceThreshold: threshold,
+	})
+
+	// 异步模拟分析
+	go func() {
+		// 模拟耗时
+		time.Sleep(3 * time.Second)
+
+		// 构造结果
+		resultUrl := "https://picsum.photos/800/600" // 模拟结果图
+		
+		// 尝试将 imageId 转为 ObjectID，如果失败则生成新的（兼容性）
+		imgObjID, err := primitive.ObjectIDFromHex(imageId)
+		if err != nil {
+			imgObjID = primitive.NewObjectID()
+		}
+
+		analysis := &domain.Analysis{
+			Id:           primitive.NewObjectID(),
+			ImageId:      imgObjID,
+			Timestamp:    time.Now(),
+			AnalysisMode: "image",
+			ResultUrl:    resultUrl,
+			Faces: []domain.FaceAnalysis{
+				{FaceIndex: 1, FocusScore: 0.92, Confidence: 0.98},
+				{FaceIndex: 2, FocusScore: 0.85, Confidence: 0.96},
+				{FaceIndex: 3, FocusScore: 0.76, Confidence: 0.91},
+			},
+			ClassName:  "Mock Class",
+			CourseName: "Mock Course",
+		}
+
+		// 保存结果到 DB
+		// 注意 context.Background() 用于新的 goroutine
+		_ = s.analysisRepo.Create(context.Background(), analysis)
+
+		// 更新状态为完成
+		s.UpdateStatus(&domain.UpdateStatus{
+			TaskId:              imageId,
+			Status:              "completed",
+			ResultUrl:           resultUrl,
+			TeacherId:           tid,
+		})
+	}()
+}
+
 func (s *AnalysisService) AnalyzeImage(ctx context.Context, fileName, fileType string) (*domain.Analysis, error) {
 	analysis := &domain.Analysis{
 		FileName:  fileName,
@@ -119,41 +174,24 @@ func (s *AnalysisService) processImageAnalysis(ctx context.Context, analysis *do
 	s.analysisRepo.Update(ctx, analysis)
 }
 
-// 获取分析历史（只返回基本信息）
-func (s *AnalysisService) GetHistory(ctx context.Context, fileType string) ([]map[string]interface{}, error) {
-	// 这里只能用 fileType 区分图片/视频
-	// teacherId 相关已去除
-	analyses, err := s.analysisRepo.FindByTeacherId(ctx, primitive.NilObjectID, 20) // teacherId 传空
+// GetHistory 获取分析历史
+func (s *AnalysisService) GetHistory(ctx context.Context, fileType string) ([]*domain.Analysis, error) {
+	// teacherId 暂时传空，后续应从 Context 获取或作为参数传入
+	analyses, err := s.analysisRepo.FindByTeacherId(ctx, primitive.NilObjectID, 20)
 	if err != nil {
 		return nil, err
 	}
-	var result []map[string]interface{}
+	var result []*domain.Analysis
 	for _, analysis := range analyses {
-		if analysis.AnalysisMode == fileType {
-			result = append(result, map[string]interface{}{
-				"id":        analysis.Id.Hex(),
-				"fileName":  analysis.CourseName,
-				"fileType":  analysis.ClassName,
-				"timestamp": analysis.Timestamp.Format("2006-01-02 15:04:05"),
-			})
+		if analysis.AnalysisMode == fileType || (fileType == "image" && analysis.FileType == "image") {
+			result = append(result, analysis)
 		}
 	}
 	return result, nil
 }
 
-// 获取单条分析结果（只返回人脸分析详情）
-func (s *AnalysisService) GetAnalysisResult(ctx context.Context, analysisId primitive.ObjectID) (map[string]interface{}, error) {
-	analysis, err := s.analysisRepo.FindById(ctx, analysisId)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]interface{}{
-		"id":           analysis.Id.Hex(),
-		"fileName":     analysis.FileName,
-		"fileType":     analysis.FileType,
-		"timestamp":    analysis.Timestamp.Format("2006-01-02 15:04:05"),
-		"faceAnalysis": analysis.Faces,
-	}, nil
+// GetAnalysisResult 获取单条分析结果
+func (s *AnalysisService) GetAnalysisResult(ctx context.Context, analysisId primitive.ObjectID) (*domain.Analysis, error) {
+	return s.analysisRepo.FindById(ctx, analysisId)
 }
-
 // 批量图片分析任务、状态、结果等接口建议继续用 AnalysisTask/FaceAnalysis 相关结构体，不建议再用 Analysis 结构体存储任务型数据。

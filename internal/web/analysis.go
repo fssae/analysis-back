@@ -52,8 +52,31 @@ func (h *TeacherHandler) Analyze(c *gin.Context) {
 		return
 	}
 
-	// 异步分析任务，传递教师ID
+	// 检查 kafkaWriter 是否可用，如果不可用则走 Mock 流程
+	if h.kafkaWriter == nil {
+		h.logger.Warn("KafkaWriter未初始化，使用Mock模式分析", zap.String("imageId", req.ImageId))
+		// 调用 Mock 分析
+		go h.analysisService.MockAnalyzeImage(
+			context.Background(),
+			req.ImageId,
+			claims.TeacherId,
+			req.ConfidenceThreshold,
+		)
 
+		c.JSON(http.StatusAccepted, gin.H{
+			"code": 202,
+			"msg":  "分析任务已提交(Mock模式)",
+			"data": gin.H{
+				"image":   req.ImageId,
+				"status":  "processing",
+				"message": "正在使用模拟分析服务(Dev Mode)",
+				"wsUrl":   "/teacher/ws?taskId=" + req.ImageId,
+			},
+		})
+		return
+	}
+
+	// 异步分析任务，传递教师ID
 	go h.performAnalysisAsync(context.Background(), req, claims.TeacherId)
 
 	c.JSON(http.StatusAccepted, gin.H{

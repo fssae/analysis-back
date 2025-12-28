@@ -87,9 +87,9 @@ func (h *TeacherHandler) GetReportList(c *gin.Context) {
 	var reportList []map[string]interface{}
 	for _, analysis := range analyses {
 		reportList = append(reportList, map[string]interface{}{
-			"id":    analysis["id"],
-			"title": analysis["title"],
-			"date":  analysis["date"],
+			"id":    analysis.Id.Hex(),
+			"title": analysis.CourseName,
+			"date":  analysis.Timestamp.Format("2006-01-02"),
 		})
 	}
 
