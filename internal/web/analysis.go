@@ -5,14 +5,15 @@ import (
 	"classroom-analysis/internal/util"
 	"context"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.uber.org/zap"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.uber.org/zap"
 )
 
 func (h *TeacherHandler) Analyze(c *gin.Context) {
@@ -326,9 +327,13 @@ func (h *TeacherHandler) updateTaskStatus(imageId, status, resultUrl, errorMsg s
 			zap.String("status", status))
 		return
 	}
-
+	objID, err := primitive.ObjectIDFromHex(teacherId)
+	if err != nil {
+		log.Fatal("无效的 ObjectID 字符串:", err)
+	}
 	updateStatus := domain.UpdateStatus{
 		TaskId:              imageId,
+		TeacherId:           objID,
 		ConfidenceThreshold: confidenceThreshold,
 		Status:              status,
 		ResultUrl:           resultUrl,
