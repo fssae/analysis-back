@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // Client 封装 WebSocket 连接，解决并发写入问题
@@ -174,7 +175,8 @@ func (c *Client) writePump() {
 }
 
 // SendTaskStatusUpdate: 对外暴露的方法
-func (m *AnalysisWSManager) SendTaskStatusUpdate(taskID, status, message, resultURL, errorMsg string) {
+func (m *AnalysisWSManager) SendTaskStatusUpdate(tId primitive.ObjectID, status, message, resultURL, errorMsg string) {
+	taskID := tId.Hex()
 	// 1. 获取连接对象
 	m.mutex.RLock()
 	client, exists := m.clients[taskID]

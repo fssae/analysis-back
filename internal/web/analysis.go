@@ -78,7 +78,7 @@ func (h *TeacherHandler) Analyze(c *gin.Context) {
 	}
 
 	// 异步分析任务，传递教师ID
-	go h.performAnalysisAsync(context.Background(), req, claims.TeacherId)
+	go h.performAnalysisAsync(context.Background(), req, claims.Id)
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"code": 202,
@@ -241,7 +241,7 @@ func (h *TeacherHandler) GetClassAnalysis(c *gin.Context) {
 }
 
 // performAnalysisAsync 异步执行分析任务，不返回HTTP响应
-func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.TeacherAnalysisRequest, teacherId string) {
+func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.TeacherAnalysisRequest, teacherId primitive.ObjectID) {
 	// 使用结构化日志
 	h.logger.Info("开始异步分析",
 		zap.String("analysisType", req.AnalysisType),
@@ -311,8 +311,7 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 	}
 }
 
-// updateTaskStatus 更新任务状态到数据库
-func (h *TeacherHandler) updateTaskStatus(imageId, status, resultUrl, errorMsg string, teacherId string, confidenceThreshold float64) {
+func (h *TeacherHandler) updateTaskStatus(imageId, status, resultUrl, errorMsg string, teacherId primitive.ObjectID, confidenceThreshold float64) {
 	h.logger.Info("更新任务状态",
 		zap.String("imageId", imageId),
 		zap.String("status", status),
@@ -327,13 +326,10 @@ func (h *TeacherHandler) updateTaskStatus(imageId, status, resultUrl, errorMsg s
 			zap.String("status", status))
 		return
 	}
-	objID, err := primitive.ObjectIDFromHex(teacherId)
-	if err != nil {
-		log.Fatal("无效的 ObjectID 字符串:", err)
-	}
+
 	updateStatus := domain.UpdateStatus{
 		TaskId:              imageId,
-		TeacherId:           objID,
+		TeacherId:           teacherId,
 		ConfidenceThreshold: confidenceThreshold,
 		Status:              status,
 		ResultUrl:           resultUrl,
