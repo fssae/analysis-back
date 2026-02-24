@@ -258,7 +258,7 @@ func (s *TeacherService) GetVideoAnalysisDetail(ctx context.Context, id string) 
 
 		for _, face := range analysisResult.Faces {
 			totalFocus += face.FocusScore
-			focusData = append(focusData, face.FocusScore)
+			focusData = append(focusData, face.FocusScore*100)
 
 			if face.FocusScore > maxFocus {
 				maxFocus = face.FocusScore
