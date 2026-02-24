@@ -3,6 +3,7 @@ package web
 import (
 	"classroom-analysis/internal/service"
 	"classroom-analysis/internal/web/middleware"
+
 	"github.com/redis/go-redis/v9"
 
 	"github.com/IBM/sarama"
@@ -76,10 +77,10 @@ func (h *TeacherHandler) RegisterRoutes(server *gin.Engine) {
 
 	teacherGroup.GET("/video/analysis-detail", h.GetVideoAnalysisDetail)
 	teacherGroup.GET("/video/history", h.GetVideoHistory)
-	teacherGroup.POST("image/analysis-config", h.UpdateConfig)
+	teacherGroup.POST("/image/analysis-config", h.UpdateConfig)
 	teacherGroup.GET("/image/history", h.GetImageHistory)
 	teacherGroup.GET("/image/analysis-result", h.GetImageAnalysisResult)
-	teacherGroup.GET("image/analysis-detail", h.GetImageAnalysisDetail)
+	teacherGroup.GET("/image/analysis-detail", h.GetImageAnalysisDetail)
 	// 报告
 	teacherGroup.GET("/report", h.GetReport)
 	teacherGroup.GET("/report/list", h.GetReportList)

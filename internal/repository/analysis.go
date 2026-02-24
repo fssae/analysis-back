@@ -54,7 +54,7 @@ func (r *AnalysisRepository) Create(ctx context.Context, analysis *domain.Analys
 
 // FindById 根据ID查找分析记录
 func (r *AnalysisRepository) FindById(ctx context.Context, id primitive.ObjectID) (*domain.Analysis, error) {
-	return r.analysisDAO.FindById(ctx, id)
+	return r.analysisDAO.FindByImageId(ctx, id)
 }
 
 // FindByTeacherId 根据教师ID查找分析记录

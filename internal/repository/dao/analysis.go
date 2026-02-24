@@ -53,10 +53,15 @@ func (dao *AnalysisDAO) Create(ctx context.Context, analysis *domain.Analysis) e
 	return nil
 }
 
-// FindById 根据ID查找
+// FindById 根据ID查找 (根据 imageid 字段，保持原有业务逻辑)
 func (dao *AnalysisDAO) FindById(ctx context.Context, id primitive.ObjectID) (*domain.Analysis, error) {
-	// 注意：你原代码用的是 imageid 而不是 _id，这里保留原逻辑
-	return dao.FindOne(ctx, bson.M{"imageid": id})
+	return dao.BaseDAO.FindOne(ctx, bson.M{"imageid": id})
+}
+
+// FindByImageId 根据 ImageID 查找
+func (dao *AnalysisDAO) FindByImageId(ctx context.Context, imageId primitive.ObjectID) (*domain.Analysis, error) {
+	// 根据 imageid 字段查找，保持原业务逻辑
+	return dao.FindById(ctx, imageId) // 复用 FindById 方法
 }
 
 // Update 更新分析记录

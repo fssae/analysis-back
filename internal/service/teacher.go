@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/viper"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type TeacherService struct {
@@ -114,68 +115,213 @@ func (s *TeacherService) GetImageAnalysisDetail(ctx context.Context, id string) 
 
 // GetVideoAnalysisDetail 获取视频分析详情
 func (s *TeacherService) GetVideoAnalysisDetail(ctx context.Context, id string) (*domain.VideoAnalysisDetail, error) {
-	// 根据ID获取视频分析详情
-	// 这里需要从多个数据源聚合数据
+	// 验证输入参数
+	if id == "" {
+		return nil, errors.New("analysis ID is required")
+	}
+
+	// 将字符串ID转换为ObjectID
 	analysisId, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid analysis ID format: %v", err)
 	}
+
+	// 并行获取所需数据以提高性能
+	type result struct {
+		analysis       *domain.Analysis
+		videoAnalysis  *domain.VideoAnalysis
+		studentFocuses []*domain.StudentFocus // 修改为指针类型
+		err            error
+		index          int
+	}
+
+	// 创建带缓冲区的通道，用于接收三个goroutine的结果
+	ch := make(chan result, 3)
 
 	// 获取基础分析信息
-	analysis, err := s.analysisRepo.FindById(ctx, analysisId)
-	if err != nil {
-		return nil, err
-	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				ch <- result{err: fmt.Errorf("panic occurred while getting analysis: %v", r), index: 0}
+			}
+		}()
+
+		analysis, err := s.analysisRepo.FindById(ctx, analysisId)
+		ch <- result{analysis: analysis, err: err, index: 0}
+	}()
 
 	// 获取视频分析详情
-	videoAnalysis, err := s.videoAnalysisRepo.FindByAnalysisId(ctx, analysisId)
-	if err != nil {
-		return nil, err
-	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				ch <- result{err: fmt.Errorf("panic occurred while getting video analysis: %v", r), index: 1}
+			}
+		}()
+
+		videoAnalysis, err := s.videoAnalysisRepo.FindByAnalysisId(ctx, analysisId)
+		ch <- result{videoAnalysis: videoAnalysis, err: err, index: 1}
+	}()
 
 	// 获取学生专注度数据
-	studentFocuses, err := s.studentFocusRepo.FindByAnalysisId(ctx, analysisId)
-	if err != nil {
-		return nil, err
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				ch <- result{err: fmt.Errorf("panic occurred while getting student focuses: %v", r), index: 2}
+			}
+		}()
+
+		studentFocuses, err := s.studentFocusRepo.FindByAnalysisId(ctx, analysisId)
+		ch <- result{studentFocuses: studentFocuses, err: err, index: 2}
+	}()
+
+	// 收集结果
+	var analysisResult *domain.Analysis
+	var videoAnalysis *domain.VideoAnalysis
+	var studentFocusPtrs []*domain.StudentFocus // 修改变量名为更清晰的名称
+
+	var resultsReceived int
+	var criticalErr error // 关键错误（非"未找到"错误）
+
+	// 等待所有goroutine完成
+	for resultsReceived < 3 {
+		select {
+		case res := <-ch:
+			resultsReceived++
+
+			switch res.index {
+			case 0: // analysis
+				if res.err != nil {
+					if res.err == mongo.ErrNoDocuments {
+						// 对于分析不存在的情况，我们直接返回错误，因为这是必须的
+						criticalErr = fmt.Errorf("analysis not found for ID: %s", id)
+					} else {
+						criticalErr = fmt.Errorf("failed to get analysis: %v", res.err)
+					}
+				} else {
+					analysisResult = res.analysis
+				}
+			case 1: // videoAnalysis
+				if res.err != nil {
+					if res.err == mongo.ErrNoDocuments {
+						// 对于视频分析不存在的情况，我们返回错误，因为这是必须的
+						criticalErr = fmt.Errorf("video analysis not found for analysis ID: %s", id)
+					} else {
+						criticalErr = fmt.Errorf("failed to get video analysis: %v", res.err)
+					}
+				} else {
+					videoAnalysis = res.videoAnalysis
+				}
+			case 2: // studentFocuses
+				if res.err != nil && res.err != mongo.ErrNoDocuments {
+					// 对于学生专注度数据，如果只是没找到文档，这是正常的（可能没有学生数据）
+					// 只有其他错误才视为关键错误
+					criticalErr = fmt.Errorf("failed to get student focuses: %v", res.err)
+				} else {
+					studentFocusPtrs = res.studentFocuses
+				}
+			}
+		case <-ctx.Done():
+			// 如果上下文被取消，立即返回
+			return nil, ctx.Err()
+		}
 	}
 
-	// 计算统计数据
+	// 检查是否存在关键错误
+	if criticalErr != nil {
+		return nil, criticalErr
+	}
+
+	// 检查分析结果是否存在（这是必须的）
+	if analysisResult == nil {
+		return nil, fmt.Errorf("analysis not found for ID: %s", id)
+	}
+
+	// 检查视频分析是否存在（这也是必须的，因为视频分析详情依赖于它）
+	if videoAnalysis == nil {
+		return nil, fmt.Errorf("video analysis not found for analysis ID: %s", id)
+	}
+
+	// studentFocusPtrs 可能为空数组，这是正常情况，表示没有学生专注度数据
+
+	// 初始化统计数据
 	var totalFocus float64
 	var maxFocus, minFocus float64
 	var focusedStudents, distractedStudents int
 	var focusData []float64
+	var studentFocuses []domain.StudentFocus // 值切片用于后续处理
 
-	if len(studentFocuses) > 0 {
-		maxFocus = studentFocuses[0].FocusScore
-		minFocus = studentFocuses[0].FocusScore
+	// 优先使用 analysis.faces 中的数据进行统计计算（因为这是直接的视频分析数据）
+	if len(analysisResult.Faces) > 0 {
+		// 初始化最大值和最小值为第一个元素的专注度分数
+		maxFocus = analysisResult.Faces[0].FocusScore
+		minFocus = analysisResult.Faces[0].FocusScore
 
-		for _, focus := range studentFocuses {
-			totalFocus += focus.FocusScore
-			focusData = append(focusData, focus.FocusScore)
+		for _, face := range analysisResult.Faces {
+			totalFocus += face.FocusScore
+			focusData = append(focusData, face.FocusScore)
 
-			if focus.FocusScore > maxFocus {
-				maxFocus = focus.FocusScore
+			if face.FocusScore > maxFocus {
+				maxFocus = face.FocusScore
 			}
-			if focus.FocusScore < minFocus {
-				minFocus = focus.FocusScore
+			if face.FocusScore < minFocus {
+				minFocus = face.FocusScore
 			}
 
 			// 判断专注/分心学生
-			if focus.FocusScore >= 0.7 {
+			if face.FocusScore >= 0.7 {
 				focusedStudents++
 			} else {
 				distractedStudents++
 			}
 		}
+	} else {
+		// 如果没有 analysis.faces 数据，则使用学生专注度数据作为备选
+		if len(studentFocusPtrs) > 0 {
+			// 初始化最大值和最小值为第一个元素
+			maxFocus = studentFocusPtrs[0].FocusScore
+			minFocus = studentFocusPtrs[0].FocusScore
+
+			for _, focusPtr := range studentFocusPtrs {
+				// 添加到值切片中
+				studentFocuses = append(studentFocuses, *focusPtr)
+
+				totalFocus += focusPtr.FocusScore
+				focusData = append(focusData, focusPtr.FocusScore)
+
+				if focusPtr.FocusScore > maxFocus {
+					maxFocus = focusPtr.FocusScore
+				}
+				if focusPtr.FocusScore < minFocus {
+					minFocus = focusPtr.FocusScore
+				}
+
+				// 判断专注/分心学生
+				if focusPtr.FocusScore >= 0.7 {
+					focusedStudents++
+				} else {
+					distractedStudents++
+				}
+			}
+		} else {
+			// 如果都没有数据，则使用默认值
+			maxFocus = 0
+			minFocus = 0
+		}
 	}
 
+	// 计算平均专注度
 	avgFocus := 0.0
+	var studentCount int
 	if len(studentFocuses) > 0 {
+		studentCount = len(studentFocuses)
 		avgFocus = totalFocus / float64(len(studentFocuses))
+	} else if len(analysisResult.Faces) > 0 {
+		studentCount = len(analysisResult.Faces)
+		avgFocus = totalFocus / float64(len(analysisResult.Faces))
 	}
 
 	// 构建响应数据
-	result := &domain.VideoAnalysisDetail{
+	response := &domain.VideoAnalysisDetail{
 		Id:                 id,
 		AvgFocus:           avgFocus,
 		MaxFocus:           maxFocus,
@@ -185,14 +331,14 @@ func (s *TeacherService) GetVideoAnalysisDetail(ctx context.Context, id string) 
 		DistractedStudents: distractedStudents,
 		ResultURL:          fmt.Sprintf("http://82.156.64.69:9000/analysis/%s.mp4", id),
 		FocusData:          focusData,
-		AnalysisTime:       analysis.Timestamp,
-		CourseName:         "数学课",  // 这里可以从其他地方获取
-		ClassName:          "高三一班", // 这里可以从其他地方获取
-		StudentCount:       len(studentFocuses),
-		Accuracy:           "medium",
+		AnalysisTime:       analysisResult.Timestamp,
+		CourseName:         analysisResult.CourseName, // 使用数据库中的真实课程名
+		ClassName:          analysisResult.ClassName,  // 使用数据库中的真实班级名
+		StudentCount:       studentCount,
+		Accuracy:           "medium", // 这个值可以根据实际算法调整
 	}
 
-	return result, nil
+	return response, nil
 }
 
 // GetStudents 获取学生专注度数据
