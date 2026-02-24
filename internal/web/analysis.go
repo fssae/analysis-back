@@ -250,6 +250,7 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 	fileId := ""
 	if req.AnalysisType == "video" {
 		fileId = req.VideoId
+		req.ImageId = req.VideoId
 	} else {
 		fileId = req.ImageId
 	}
