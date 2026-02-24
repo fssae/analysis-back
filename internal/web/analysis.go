@@ -25,22 +25,30 @@ func (h *TeacherHandler) Analyze(c *gin.Context) {
 		})
 		return
 	}
-	log.Printf("imageId:%v", req.ImageId)
-	if req.Url == "" || req.ImageId == "" {
+
+	fileId := ""
+	if req.AnalysisType == "video" {
+		fileId = req.VideoId
+		log.Printf("videoId:%v", req.VideoId)
+	} else {
+		fileId = req.ImageId
+		log.Printf("imageId:%v", req.ImageId)
+	}
+
+	if req.Url == "" || fileId == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code": 400,
 			"msg":  "ID或URL不能为空",
 		})
 		return
 	}
-	status, _ := h.redis.Get(c, req.ImageId).Result()
+	status, _ := h.redis.Get(c, fileId).Result()
 	log.Printf("%v", status)
 	if status == "STATUS_PROCESSING" {
-		//计数器
 		domain.IdempotentInterceptTotal.Inc()
 		c.JSON(http.StatusOK, gin.H{
 			"code": 200,
-			"msg":  fmt.Sprintf("正在处理中,请勿重复提交,%+v", req.ImageId),
+			"msg":  fmt.Sprintf("正在处理中,请勿重复提交,%+v", fileId),
 		})
 		return
 	}
@@ -53,13 +61,11 @@ func (h *TeacherHandler) Analyze(c *gin.Context) {
 		return
 	}
 
-	// 检查 kafkaWriter 是否可用，如果不可用则走 Mock 流程
 	if h.kafkaWriter == nil {
-		h.logger.Warn("KafkaWriter未初始化，使用Mock模式分析", zap.String("imageId", req.ImageId))
-		// 调用 Mock 分析
+		h.logger.Warn("KafkaWriter未初始化，使用Mock模式分析", zap.String("fileId", fileId))
 		go h.analysisService.MockAnalyzeImage(
 			context.Background(),
-			req.ImageId,
+			fileId,
 			claims.TeacherId,
 			req.ConfidenceThreshold,
 		)
@@ -68,26 +74,25 @@ func (h *TeacherHandler) Analyze(c *gin.Context) {
 			"code": 202,
 			"msg":  "分析任务已提交(Mock模式)",
 			"data": gin.H{
-				"image":   req.ImageId,
+				"fileId":  fileId,
 				"status":  "processing",
 				"message": "正在使用模拟分析服务(Dev Mode)",
-				"wsUrl":   "/teacher/ws?taskId=" + req.ImageId,
+				"wsUrl":   "/teacher/ws?taskId=" + fileId,
 			},
 		})
 		return
 	}
 
-	// 异步分析任务，传递教师ID
 	go h.performAnalysisAsync(context.Background(), req, claims)
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"code": 202,
 		"msg":  "分析任务已提交，正在后台处理中",
 		"data": gin.H{
-			"image":   req.ImageId,
+			"fileId":  fileId,
 			"status":  "processing",
 			"message": "可通过WebSocket实时获取进度，或使用taskId轮询分析",
-			"wsUrl":   "/teacher/ws?taskId=" + req.ImageId,
+			"wsUrl":   "/teacher/ws?taskId=" + fileId,
 		},
 	})
 }
@@ -242,14 +247,19 @@ func (h *TeacherHandler) GetClassAnalysis(c *gin.Context) {
 
 // performAnalysisAsync 异步执行分析任务，不返回HTTP响应
 func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.TeacherAnalysisRequest, claims *domain.TeacherClaims) {
-	// 使用结构化日志
+	fileId := ""
+	if req.AnalysisType == "video" {
+		fileId = req.VideoId
+	} else {
+		fileId = req.ImageId
+	}
+
 	h.logger.Info("开始异步分析",
 		zap.String("analysisType", req.AnalysisType),
-		zap.String("imageId", req.ImageId),
+		zap.String("fileId", fileId),
 		zap.String("url", req.Url),
 		zap.String("className", req.ClassName),
 		zap.String("courseName", req.CourseName))
-	// 获取WebSocket管理器
 	wsManager := GetAnalysisWSManager()
 	kafkaTaskId := uuid.New().String()
 	req.TaskId = kafkaTaskId
@@ -258,8 +268,8 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 	}
 	teacherId := claims.Id
 	wsId := claims.TeacherId
-	taskId := req.ImageId
-	// 检查kafkaWriter是否为nil
+	taskId := fileId
+
 	if h.kafkaWriter == nil {
 		err := fmt.Errorf("kafkaWriter未初始化")
 		h.logger.Error("kafkaWriter为nil", zap.Error(err))
@@ -271,7 +281,7 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 	err := h.kafkaWriter.Write(message)
 	if err != nil {
 		h.logger.Error("发送Kafka消息失败",
-			zap.String("imageId", taskId),
+			zap.String("fileId", taskId),
 			zap.Error(err),
 			zap.Any("message", message))
 		h.updateTaskStatus(taskId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
@@ -279,15 +289,13 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 		return
 	}
 	wsManager.SendTaskStatusUpdate(wsId, "已传入Kafka消息", "异步分析中...", "nil", "nil")
-	// 读取结果，传入imageId用于消息匹配
-	resultChan, ctx, cancel, err := h.ReadKafka(c, req.ImageId)
+	resultChan, ctx, cancel, err := h.ReadKafka(c, fileId)
 	if err != nil {
 		fmt.Printf("收到空响应: %v\n", err)
 		h.updateTaskStatus(taskId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
 		wsManager.SendTaskStatusUpdate(wsId, "创建Kafka消费者失败", "分析失败", "nil", "nil")
 		return
 	}
-	//wsManager.SendTaskStatusUpdate(wsIdtest", "test", "nil", "test")
 	defer cancel()
 	select {
 	case resp := <-resultChan:
@@ -296,13 +304,11 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 			wsManager.SendTaskStatusUpdate(wsId, "收到空响应", "分析失败", "nil", "响应为空")
 			return
 		}
-		//分析完成，幂等处理
-		h.redis.Set(c, req.ImageId, "STATUS_DONE", 20*time.Minute)
+		h.redis.Set(c, fileId, "STATUS_DONE", 20*time.Minute)
 		resultURL := ""
 		if resp.ResultURL != "" {
 			resultURL = resp.ResultURL
 		}
-		//上传status，email,计算平均专注度
 		h.updateTaskStatus(taskId, "completed", resultURL, "", teacherId, req.ConfidenceThreshold)
 		wsManager.SendTaskStatusUpdate(wsId, "completed", "分析成功", resultURL, "")
 	case <-ctx.Done():
@@ -311,24 +317,23 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 	}
 }
 
-func (h *TeacherHandler) updateTaskStatus(imageId, status, resultUrl, errorMsg string, teacherId primitive.ObjectID, confidenceThreshold float64) {
+func (h *TeacherHandler) updateTaskStatus(fileId, status, resultUrl, errorMsg string, teacherId primitive.ObjectID, confidenceThreshold float64) {
 	h.logger.Info("更新任务状态",
-		zap.String("imageId", imageId),
+		zap.String("fileId", fileId),
 		zap.String("status", status),
 		zap.String("resultUrl", resultUrl),
 		zap.String("errorMsg", errorMsg),
 		zap.Float64("confidenceThreshold", confidenceThreshold))
 
-	// 检查analysisService是否为nil
 	if h.analysisService == nil {
 		h.logger.Error("analysisService为nil，无法更新任务状态",
-			zap.String("taskId", imageId),
+			zap.String("taskId", fileId),
 			zap.String("status", status))
 		return
 	}
 
 	updateStatus := domain.UpdateStatus{
-		TaskId:              imageId,
+		TaskId:              fileId,
 		TeacherId:           teacherId,
 		ConfidenceThreshold: confidenceThreshold,
 		Status:              status,
@@ -338,15 +343,13 @@ func (h *TeacherHandler) updateTaskStatus(imageId, status, resultUrl, errorMsg s
 
 	if err := h.analysisService.UpdateStatus(&updateStatus); err != nil {
 		h.logger.Error("更新任务状态失败",
-			zap.String("taskId", imageId),
+			zap.String("taskId", fileId),
 			zap.String("status", status),
 			zap.Error(err))
-		// 这里可以考虑重试机制或者将失败的状态更新放入队列
 		return
 	}
-	//插入email
 	h.logger.Info("任务状态更新成功",
-		zap.String("taskId", imageId),
+		zap.String("taskId", fileId),
 		zap.String("status", status))
 }
 
