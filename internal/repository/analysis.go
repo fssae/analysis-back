@@ -98,6 +98,7 @@ func (r *AnalysisRepository) GetClassAnalysisList(
 			focusAvg = sum / float64(len(a.Faces))
 		}
 		item := domain.ClassAnalysisItem{
+			ImageId:    string(a.ImageId.Hex()),
 			CourseName: a.CourseName,
 			ClassName:  a.ClassName,
 			Date:       a.Timestamp.Format("2006-01-02 15:04"),

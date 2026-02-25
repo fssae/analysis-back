@@ -207,6 +207,7 @@ type ClassAnalysisItem struct {
 	CourseName string  `json:"courseName" bson:"courseName"`
 	ClassName  string  `json:"className" bson:"className"`
 	Date       string  `json:"date" bson:"date"`
+	ImageId    string  `json:"imageid" bson:"imageid"`
 	FocusAvg   float64 `json:"focusAvg" bson:"focusAvg"`
 	ResultUrl  string  `json:"resultUrl" bson:"resultUrl"`
 }
