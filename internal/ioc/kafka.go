@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"classroom-analysis/internal/domain"
+
 	"github.com/IBM/sarama"
 	"github.com/spf13/viper"
 )
@@ -58,7 +59,7 @@ func StartKafkaResponseConsumer() {
 	config.Net.SASL.Handshake = true
 	config.Net.TLS.Enable = false // 如果用 SASL_PLAINTEXT
 	config.Version = sarama.V2_1_0_0
-	config.Consumer.Offsets.Initial = sarama.OffsetNewest
+	config.Consumer.Offsets.Initial = sarama.OffsetOldest
 
 	group, err := sarama.NewConsumerGroup(brokers, groupId, config)
 	if err != nil {
