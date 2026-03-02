@@ -121,6 +121,39 @@ func (h *TeacherHandler) UpdateConfig(c *gin.Context) {
 
 }
 
+// UpdateAnalysisName 更新分析文件名
+func (h *TeacherHandler) UpdateAnalysisName(c *gin.Context) {
+	var req domain.UpdateAnalysisNameRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": fmt.Sprintf("请求参数错误: %v", err),
+		})
+		return
+	}
+
+	if req.ImageId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  "imageid 不能为空",
+		})
+		return
+	}
+	
+
+	if err := h.analysisService.UpdateAnalysisName(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    500,
+			"message": fmt.Sprintf("服务器错误: %v", err),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "文件名更新成功",
+	})
+}
+
 // GetImageHistory 获取图片分析历史
 func (h *TeacherHandler) GetImageHistory(c *gin.Context) {
 	history, err := h.analysisService.GetHistory(c.Request.Context(), "image")

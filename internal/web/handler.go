@@ -78,6 +78,7 @@ func (h *TeacherHandler) RegisterRoutes(server *gin.Engine) {
 	teacherGroup.GET("/video/analysis-detail", h.GetVideoAnalysisDetail)
 	teacherGroup.GET("/video/history", h.GetVideoHistory)
 	teacherGroup.POST("/image/analysis-config", h.UpdateConfig)
+	teacherGroup.POST("/analysis-name", h.UpdateAnalysisName)
 	teacherGroup.GET("/image/history", h.GetImageHistory)
 	teacherGroup.GET("/image/analysis-result", h.GetImageAnalysisResult)
 	teacherGroup.GET("/image/analysis-detail", h.GetImageAnalysisDetail)

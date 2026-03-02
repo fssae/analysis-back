@@ -38,6 +38,11 @@ type UpdateConfigRequest struct {
 	Description  string             `json:"description" bson:"description"`   // 描述信息
 	Timestamp    time.Time          `json:"timestamp" bson:"timestamp"`
 }
+
+type UpdateAnalysisNameRequest struct {
+	FileName string `json:"fileName" bson:"filename"` // 新的文件名
+	ImageId  string `json:"imageid" bson:"imageid"`   // 图片ID
+}
 type UpdateStatus struct {
 	TeacherId           primitive.ObjectID `json:"teacherId" bson:"teacherId"`
 	TaskId              string             `json:"taskId" bson:"taskId"`

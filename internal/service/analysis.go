@@ -46,6 +46,11 @@ func NewAnalysisService(
 func (s *AnalysisService) UpdateConfig(update *domain.UpdateConfigRequest) error {
 	return s.analysisRepo.UpdateConfig(update)
 }
+
+func (s *AnalysisService) UpdateAnalysisName(update *domain.UpdateAnalysisNameRequest) error {
+	return s.analysisRepo.UpdateAnalysisName(update)
+}
+
 func (s *AnalysisService) UpdateStatus(update *domain.UpdateStatus) error {
 	return s.analysisRepo.UpdateStatus(update)
 }
@@ -109,7 +114,7 @@ func (s *AnalysisService) MockAnalyzeImage(ctx context.Context, imageId string, 
 
 		// 构造结果
 		resultUrl := "https://picsum.photos/800/600" // 模拟结果图
-		
+
 		// 尝试将 imageId 转为 ObjectID，如果失败则生成新的（兼容性）
 		imgObjID, err := primitive.ObjectIDFromHex(imageId)
 		if err != nil {
@@ -137,10 +142,10 @@ func (s *AnalysisService) MockAnalyzeImage(ctx context.Context, imageId string, 
 
 		// 更新状态为完成
 		s.UpdateStatus(&domain.UpdateStatus{
-			TaskId:              imageId,
-			Status:              "completed",
-			ResultUrl:           resultUrl,
-			TeacherId:           tid,
+			TaskId:    imageId,
+			Status:    "completed",
+			ResultUrl: resultUrl,
+			TeacherId: tid,
 		})
 	}()
 }
@@ -194,4 +199,5 @@ func (s *AnalysisService) GetHistory(ctx context.Context, fileType string) ([]*d
 func (s *AnalysisService) GetAnalysisResult(ctx context.Context, analysisId primitive.ObjectID) (*domain.Analysis, error) {
 	return s.analysisRepo.FindById(ctx, analysisId)
 }
+
 // 批量图片分析任务、状态、结果等接口建议继续用 AnalysisTask/FaceAnalysis 相关结构体，不建议再用 Analysis 结构体存储任务型数据。

@@ -25,6 +25,11 @@ func NewAnalysisRepository(analysisDAO *dao.AnalysisDAO,
 func (r *AnalysisRepository) UpdateConfig(update *domain.UpdateConfigRequest) error {
 	return r.analysisDAO.UpdateConfig(update)
 }
+
+func (r *AnalysisRepository) UpdateAnalysisName(update *domain.UpdateAnalysisNameRequest) error {
+	return r.analysisDAO.UpdateAnalysisName(update)
+}
+
 func (r *AnalysisRepository) UpdateStatus(update *domain.UpdateStatus) error {
 	err := r.analysisDAO.UpdateStatus(update)
 	if err != nil {

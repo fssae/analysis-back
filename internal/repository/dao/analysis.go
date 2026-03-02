@@ -130,6 +130,31 @@ func (dao *AnalysisDAO) UpdateConfig(update *domain.UpdateConfigRequest) error {
 	return err
 }
 
+// UpdateAnalysisName 更新分析文件名
+func (dao *AnalysisDAO) UpdateAnalysisName(update *domain.UpdateAnalysisNameRequest) error {
+	imageId, err := primitive.ObjectIDFromHex(update.ImageId)
+	if err != nil {
+		return err
+	}
+
+	result, err := dao.UpdateOne(
+		context.Background(),
+		bson.M{"imageid": imageId},
+		bson.M{"$set": bson.M{
+			"fileName": update.FileName,
+		}},
+	)
+	if err != nil {
+		return err
+	}
+
+	if result.MatchedCount == 0 {
+		return errors.New("未找到对应的分析记录")
+	}
+
+	return nil
+}
+
 // FindClassAnalysisList 复杂查询
 func (dao *AnalysisDAO) FindClassAnalysisList(ctx context.Context, courseName, className, startDate, endDate string, page, pageSize int) ([]*domain.Analysis, int64, error) {
 	filter := bson.M{}
