@@ -105,6 +105,7 @@ func (r *AnalysisRepository) GetClassAnalysisList(
 		item := domain.ClassAnalysisItem{
 			ImageId:    string(a.ImageId.Hex()),
 			CourseName: a.CourseName,
+			FileName:   a.FileName,
 			ClassName:  a.ClassName,
 			Date:       a.Timestamp.Format("2006-01-02 15:04"),
 			FocusAvg:   focusAvg,
