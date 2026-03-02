@@ -65,14 +65,15 @@ func (f *FileService) Upload(ctx *gin.Context, file *multipart.FileHeader) (stri
 		return "", "", errors.New("MinIO 配置不完整")
 	}
 
-	// 上传对象
-	_, err = f.client.PutObject(ctx, bucketName, u.String(), open, -1, minio.PutObjectOptions{ContentType: contentType})
+	// 上传对象：使用 UUID 作为目录，保留原始文件名
+	objectName := fmt.Sprintf("%s/%s", u.String(), file.Filename)
+	_, err = f.client.PutObject(ctx, bucketName, objectName, open, -1, minio.PutObjectOptions{ContentType: contentType})
 	if err != nil {
 		return "", "", fmt.Errorf("上传到 MinIO 失败: %w", err)
 	}
 
 	// 生成正确的MinIO访问URL
-	url := fmt.Sprintf("http://%s:%s/%s/%s", address, port, bucketName, u.String())
+	url := fmt.Sprintf("http://%s:%s/%s/%s", address, port, bucketName, objectName)
 	return url, fileType, nil
 }
 

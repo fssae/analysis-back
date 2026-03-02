@@ -10,6 +10,7 @@ type Analysis struct {
 	Id primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
 	// 保持与前端 FormData 传参一致的 JSON 标签
 	ImageId      primitive.ObjectID `json:"imageId" bson:"imageid"`
+	AnalysisType string             `json:"analysisType" bson:"analysisType"`
 	Faces        []FaceAnalysis     `json:"faces" bson:"faces"`
 	ResultUrl    string             `json:"resultUrl" bson:"result_url"`
 	Timestamp    time.Time          `json:"timestamp" bson:"timestamp"`
