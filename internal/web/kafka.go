@@ -7,14 +7,12 @@ import (
 	"time"
 )
 
-func (h *TeacherHandler) ReadKafka(c context.Context, imageId string) (<-chan *domain.KafkaResp, context.Context, context.CancelFunc, error) {
+func (h *TeacherHandler) ReadKafka(c context.Context, taskId string) (<-chan *domain.KafkaResp, context.Context, context.CancelFunc, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	resultChan := events.GlobalWaiter.Register(imageId)
-	// 3. 自动清理逻辑：如果超时了，把 Map 里的 channel 删掉防止内存泄漏
+	resultChan := events.GlobalWaiter.Register(taskId)
 	go func() {
 		<-ctx.Done()
-		// 超时清理
-		events.GlobalWaiter.Delete(imageId)
+		events.GlobalWaiter.Delete(taskId)
 	}()
 	return resultChan, ctx, cancel, nil
 }
