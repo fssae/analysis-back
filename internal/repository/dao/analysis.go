@@ -371,22 +371,9 @@ func (dao *AnalysisDAO) FindByImageIdString(ctx context.Context, imageIdStr stri
 }
 
 func (dao *AnalysisDAO) UpdateFileNameByTaskId(ctx context.Context, taskId, fileName string) error {
-	status, err := dao.GetTaskStatus(ctx, taskId)
-	if err != nil {
-		return err
-	}
-	if status == nil {
-		return errors.New("status not found for taskId: " + taskId)
-	}
-
-	imageId := status.ImageId
-	if imageId.IsZero() {
-		return errors.New("imageId is zero for taskId: " + taskId)
-	}
-
 	result, err := dao.UpdateOne(
 		ctx,
-		bson.M{"imageid": imageId},
+		bson.M{"taskId": taskId},
 		bson.M{"$set": bson.M{
 			"fileName": fileName,
 		}},
@@ -396,7 +383,7 @@ func (dao *AnalysisDAO) UpdateFileNameByTaskId(ctx context.Context, taskId, file
 	}
 
 	if result.MatchedCount == 0 {
-		return errors.New("analysis not found for imageId: " + imageId.Hex())
+		return errors.New("analysis not found for taskId: " + taskId)
 	}
 
 	return nil
