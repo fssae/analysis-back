@@ -12,6 +12,7 @@ type TeacherAnalysisRequest struct {
 	ClassName           string    `form:"className" json:"className" bson:"className"`
 	CourseName          string    `form:"courseName" json:"courseName" bson:"courseName"`
 	Description         string    `form:"description" json:"description" bson:"description"`
+	FileName            string    `form:"fileName" json:"fileName" bson:"fileName"`
 	Timestamp           time.Time `form:"timestamp" json:"timestamp" bson:"timestamp"`
 }
 

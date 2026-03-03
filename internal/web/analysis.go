@@ -348,52 +348,17 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 			resultURL = resp.ResultURL
 		}
 
-		analysis, err := h.analysisService.FindByImageIdString(c, fileId)
-		if err != nil {
-			h.logger.Error("查询分析记录失败",
-				zap.String("fileId", fileId),
-				zap.Error(err))
-		} else if analysis != nil {
-			h.logger.Info("查询到分析记录",
-				zap.String("analysisId", analysis.Id.Hex()),
-				zap.String("imageId", analysis.ImageId.Hex()),
-				zap.String("fileName", analysis.FileName))
-
-			var fileName string
-			fileObj, err := h.fileRepo.GetFileMessageById(c, analysis.ImageId, req.AnalysisType)
+		if req.FileName != "" {
+			err = h.analysisService.UpdateFileNameByTaskId(c, taskId, req.FileName)
 			if err != nil {
-				h.logger.Error("查询文件信息失败",
-					zap.String("imageId", analysis.ImageId.Hex()),
-					zap.String("fileType", req.AnalysisType),
+				h.logger.Error("更新分析文件名失败",
+					zap.String("taskId", taskId),
+					zap.String("fileName", req.FileName),
 					zap.Error(err))
-			} else if fileObj != nil {
-				if req.AnalysisType == "video" {
-					if video, ok := fileObj.(*domain.VideoMessage); ok {
-						fileName = video.Url
-						h.logger.Info("查询到视频文件信息",
-							zap.String("videoUrl", fileName))
-					}
-				} else {
-					if image, ok := fileObj.(*domain.ImageMessage); ok {
-						fileName = image.Url
-						h.logger.Info("查询到图片文件信息",
-							zap.String("imageUrl", fileName))
-					}
-				}
-			}
-
-			if fileName != "" {
-				err = h.analysisService.UpdateFileNameByTaskId(c, taskId, fileName)
-				if err != nil {
-					h.logger.Error("更新分析文件名失败",
-						zap.String("taskId", taskId),
-						zap.String("fileName", fileName),
-						zap.Error(err))
-				} else {
-					h.logger.Info("成功更新分析文件名",
-						zap.String("taskId", taskId),
-						zap.String("fileName", fileName))
-				}
+			} else {
+				h.logger.Info("成功更新分析文件名",
+					zap.String("taskId", taskId),
+					zap.String("fileName", req.FileName))
 			}
 		}
 
