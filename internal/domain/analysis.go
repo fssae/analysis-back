@@ -67,9 +67,16 @@ type UpdateStatus struct {
 
 // FaceAnalysis 人脸分析详情
 type FaceAnalysis struct {
-	FaceIndex  int     `json:"faceIndex" bson:"face_index"`
-	FocusScore float64 `json:"focusScore" bson:"focus_score"`
-	Confidence float64 `json:"confidence" bson:"confidence"`
+	FaceIndex          int      `json:"faceIndex" bson:"face_index"`
+	FocusScore         float64  `json:"focusScore" bson:"focus_score"`
+	Confidence         float64  `json:"confidence" bson:"confidence"`
+	ClassNum           int      `json:"classNum,omitempty" bson:"class_num,omitempty"`
+	Emotion            string   `json:"emotion,omitempty" bson:"emotion,omitempty"`
+	FatigueScore       float64  `json:"fatigueScore,omitempty" bson:"fatigue_score,omitempty"`
+	BlinkRate          float64  `json:"blinkRate,omitempty" bson:"blink_rate,omitempty"`
+	YawnCount          int      `json:"yawnCount,omitempty" bson:"yawn_count,omitempty"`
+	EmotionFluctuation float64  `json:"emotionFluctuation,omitempty" bson:"emotion_fluctuation,omitempty"`
+	RecentEmotions     []string `json:"recentEmotions,omitempty" bson:"recent_emotions,omitempty"`
 }
 
 // VideoAnalysis 视频分析详情
@@ -208,7 +215,7 @@ type VideoAnalysisDetail struct {
 
 // 班级分析返回结构体
 // 用于 /api/teacher/class-analysis 接口
-// focusAvg 为小数，前端需乘以100显示百分比
+// focusAvg 为小数，前端需乘以 100 显示百分比
 // date 格式为 yyyy-MM-dd
 // resultUrl 为分析结果图片地址
 type ClassAnalysisItem struct {
@@ -219,4 +226,144 @@ type ClassAnalysisItem struct {
 	ImageId    string  `json:"imageid" bson:"imageid"`
 	FocusAvg   float64 `json:"focusAvg" bson:"focusAvg"`
 	ResultUrl  string  `json:"resultUrl" bson:"resultUrl"`
+}
+
+// ========== 情绪分析相关结构体 ==========
+
+// EmotionAnalysisResponse 情绪分析响应
+type EmotionAnalysisResponse struct {
+	Summary             EmotionSummary         `json:"summary"`
+	EmotionDistribution map[string]EmotionStat `json:"emotionDistribution"`
+	Students            []StudentEmotion       `json:"students"`
+	TimeSeries          EmotionTimeSeries      `json:"timeSeries"`
+	VideoUrl            string                 `json:"videoUrl"`
+	OriginalVideoUrl    string                 `json:"originalVideoUrl"`
+}
+
+// EmotionSummary 情绪分析摘要
+type EmotionSummary struct {
+	TotalStudents             int       `json:"totalStudents"`
+	CourseName                string    `json:"courseName"`
+	ClassName                 string    `json:"className"`
+	Timestamp                 time.Time `json:"timestamp"`
+	AverageEmotionFluctuation float64   `json:"averageEmotionFluctuation"`
+}
+
+// EmotionStat 情绪统计
+type EmotionStat struct {
+	Count      int     `json:"count"`
+	Percentage float64 `json:"percentage"`
+}
+
+// StudentEmotion 学生情绪信息
+type StudentEmotion struct {
+	FaceIndex          int      `json:"faceIndex"`
+	CurrentEmotion     string   `json:"currentEmotion"`
+	EmotionFluctuation float64  `json:"emotionFluctuation"`
+	RecentEmotions     []string `json:"recentEmotions"`
+	EmotionStability   string   `json:"emotionStability"`
+	AverageFatigue     float64  `json:"averageFatigue"`
+}
+
+// EmotionTimeSeries 情绪时间序列
+type EmotionTimeSeries struct {
+	Timestamps  []string               `json:"timestamps"`
+	StudentData []StudentEmotionSeries `json:"studentData"`
+}
+
+// StudentEmotionSeries 学生情绪序列
+type StudentEmotionSeries struct {
+	FaceIndex         int       `json:"faceIndex"`
+	Emotions          []string  `json:"emotions"`
+	FluctuationValues []float64 `json:"fluctuationValues"`
+}
+
+// EmotionHeatmapResponse 情绪热力图响应
+type EmotionHeatmapResponse struct {
+	Timestamps    []string `json:"timestamps"`
+	Emotions      []string `json:"emotions"`
+	Data          [][]int  `json:"data"`
+	TotalStudents int      `json:"totalStudents"`
+}
+
+// ========== 疲劳度分析相关结构体 ==========
+
+// FatigueAnalysisResponse 疲劳度分析响应
+type FatigueAnalysisResponse struct {
+	Summary             FatigueSummary         `json:"summary"`
+	FatigueDistribution map[string]FatigueStat `json:"fatigueDistribution"`
+	Students            []StudentFatigue       `json:"students"`
+	Alerts              []FatigueAlert         `json:"alerts"`
+	TimeSeries          FatigueTimeSeries      `json:"timeSeries"`
+	VideoUrl            string                 `json:"videoUrl"`
+	OriginalVideoUrl    string                 `json:"originalVideoUrl"`
+}
+
+// FatigueSummary 疲劳度分析摘要
+type FatigueSummary struct {
+	TotalStudents       int       `json:"totalStudents"`
+	CourseName          string    `json:"courseName"`
+	ClassName           string    `json:"className"`
+	Timestamp           time.Time `json:"timestamp"`
+	AverageFatigueScore float64   `json:"averageFatigueScore"`
+	HighFatigueCount    int       `json:"highFatigueCount"`
+	TotalYawnCount      int       `json:"totalYawnCount"`
+	AverageBlinkRate    float64   `json:"averageBlinkRate"`
+}
+
+// FatigueStat 疲劳度统计
+type FatigueStat struct {
+	Count      int         `json:"count"`
+	Percentage float64     `json:"percentage"`
+	Threshold  interface{} `json:"threshold"`
+}
+
+// StudentFatigue 学生疲劳度信息
+type StudentFatigue struct {
+	FaceIndex       int       `json:"faceIndex"`
+	FatigueScore    float64   `json:"fatigueScore"`
+	FatigueLevel    string    `json:"fatigueLevel"`
+	BlinkRate       float64   `json:"blinkRate"`
+	YawnCount       int       `json:"yawnCount"`
+	FatigueTrend    []float64 `json:"fatigueTrend"`
+	AttentionStatus string    `json:"attentionStatus"`
+}
+
+// FatigueAlert 疲劳度预警
+type FatigueAlert struct {
+	FaceIndex      int     `json:"faceIndex"`
+	FatigueScore   float64 `json:"fatigueScore"`
+	BlinkRate      float64 `json:"blinkRate"`
+	YawnCount      int     `json:"yawnCount"`
+	AlertLevel     string  `json:"alertLevel"`
+	Recommendation string  `json:"recommendation"`
+}
+
+// FatigueTimeSeries 疲劳度时间序列
+type FatigueTimeSeries struct {
+	Timestamps   []string  `json:"timestamps"`
+	ClassAverage []float64 `json:"classAverage"`
+	ClassMax     []float64 `json:"classMax"`
+	ClassMin     []float64 `json:"classMin"`
+}
+
+// BlinkAnalysisResponse 眨眼频率分析响应
+type BlinkAnalysisResponse struct {
+	AverageBlinkRate float64            `json:"averageBlinkRate"`
+	NormalRange      []float64          `json:"normalRange"`
+	Students         []StudentBlinkRate `json:"students"`
+	Distribution     []BlinkRangeStat   `json:"distribution"`
+}
+
+// StudentBlinkRate 学生眨眼频率
+type StudentBlinkRate struct {
+	FaceIndex int     `json:"faceIndex"`
+	BlinkRate float64 `json:"blinkRate"`
+	Status    string  `json:"status"`
+}
+
+// BlinkRangeStat 眨眼频率范围统计
+type BlinkRangeStat struct {
+	Range string `json:"range"`
+	Count int    `json:"count"`
 }

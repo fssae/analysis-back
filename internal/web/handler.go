@@ -99,6 +99,14 @@ func (h *TeacherHandler) RegisterRoutes(server *gin.Engine) {
 	// 新增：班级分析接口
 	teacherGroup.GET("/class-analysis", h.GetClassAnalysis)
 
+	// 情绪分析接口
+	teacherGroup.GET("/emotion-analysis", h.GetEmotionAnalysis)
+	teacherGroup.GET("/emotion-heatmap", h.GetEmotionHeatmap)
+
+	// 疲劳度分析接口
+	teacherGroup.GET("/fatigue-analysis", h.GetFatigueAnalysis)
+	teacherGroup.GET("/blink-analysis", h.GetBlinkAnalysis)
+
 	// 教师设置
 	teacherGroup.GET("/settings", h.GetSettings)
 	teacherGroup.POST("/settings", h.UpdateSettings)

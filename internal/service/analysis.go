@@ -70,6 +70,11 @@ func (s *AnalysisService) FindByImageIdString(ctx context.Context, imageIdStr st
 	return s.analysisRepo.FindByImageIdString(ctx, imageIdStr)
 }
 
+// GetAnalysisById 根据 ID 获取分析记录
+func (s *AnalysisService) GetAnalysisById(ctx context.Context, id primitive.ObjectID) (*domain.Analysis, error) {
+	return s.analysisRepo.FindById(ctx, id)
+}
+
 func (s *AnalysisService) UpdateFileNameByTaskId(ctx context.Context, taskId, fileName string) error {
 	return s.analysisRepo.UpdateFileNameByTaskId(ctx, taskId, fileName)
 }
