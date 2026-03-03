@@ -2,6 +2,7 @@ package repository
 
 import (
 	"classroom-analysis/internal/repository/dao"
+	"context"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -9,17 +10,24 @@ import (
 
 type FileInterface interface {
 	UploadFileMessageRepository(ctx *gin.Context, url string, fileType string) (primitive.ObjectID, error)
+	GetFileMessageById(ctx context.Context, id primitive.ObjectID, fileType string) (interface{}, error)
 }
 type FileRepository struct {
 	dao dao.FileDaoInterface
 }
 
 func (r *FileRepository) UploadFileMessageRepository(ctx *gin.Context, url string, fileType string) (primitive.ObjectID, error) {
-	// 根据文件类型调用相应的DAO方法
 	if fileType == "video" {
 		return r.dao.UploadVideoMessage(ctx, url)
 	}
 	return r.dao.UploadImageMessage(ctx, url)
+}
+
+func (r *FileRepository) GetFileMessageById(ctx context.Context, id primitive.ObjectID, fileType string) (interface{}, error) {
+	if fileType == "video" {
+		return r.dao.GetVideoMessageById(ctx, id)
+	}
+	return r.dao.GetImageMessageById(ctx, id)
 }
 
 func NewFileRepository(dao dao.FileDaoInterface) *FileRepository {

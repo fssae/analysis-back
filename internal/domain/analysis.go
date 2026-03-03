@@ -18,8 +18,9 @@ type Analysis struct {
 	ClassName    string             `json:"className" bson:"className"`
 	CourseName   string             `json:"courseName" bson:"courseName"`
 	Description  string             `json:"description" bson:"description"`
-	FileName     string             `json:"fileName" bson:"filename"` // 建议大写N
-	FileType     string             `json:"fileType" bson:"filetype"` // 建议大写T
+	FileName     string             `json:"fileName" bson:"filename"`
+	AnalysisName string             `json:"analysisName" bson:"analysisName"`
+	FileType     string             `json:"fileType" bson:"filetype"`
 }
 type AnalysisResult struct {
 	AvgFocus           float64 `json:"avgFocus"`
@@ -46,6 +47,7 @@ type UpdateAnalysisNameRequest struct {
 type UpdateStatus struct {
 	TeacherId           primitive.ObjectID `json:"teacherId" bson:"teacherId"`
 	TaskId              string             `json:"taskId" bson:"taskId"`
+	ImageId             primitive.ObjectID `json:"imageId" bson:"imageId"`
 	Status              string             `json:"status" bson:"status"`
 	ConfidenceThreshold float64            `json:"confidenceThreshold" bson:"confidenceThreshold"`
 	ResultUrl           string             `json:"resultUrl" bson:"resultUrl"`

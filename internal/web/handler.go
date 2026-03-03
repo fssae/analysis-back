@@ -1,6 +1,7 @@
 package web
 
 import (
+	"classroom-analysis/internal/repository"
 	"classroom-analysis/internal/service"
 	"classroom-analysis/internal/web/middleware"
 
@@ -25,6 +26,7 @@ type ConsumerGroupFactory func(groupId string) (sarama.ConsumerGroup, error)
 type TeacherHandler struct {
 	teacherService  *service.TeacherService
 	analysisService *service.AnalysisService
+	fileRepo        *repository.FileRepository
 	kafkaWriter     KafkaWriter
 	kafkaReader     KafkaReader
 	logger          *zap.Logger
@@ -35,6 +37,7 @@ type TeacherHandler struct {
 func NewTeacherHandler(
 	teacherService *service.TeacherService,
 	analysisService *service.AnalysisService,
+	fileRepo *repository.FileRepository,
 	logger *zap.Logger,
 	kafkaWriter KafkaWriter,
 	redis *redis.Client,
@@ -42,6 +45,7 @@ func NewTeacherHandler(
 	return &TeacherHandler{
 		teacherService:  teacherService,
 		analysisService: analysisService,
+		fileRepo:        fileRepo,
 		logger:          logger,
 		kafkaWriter:     kafkaWriter,
 		redis:           redis,

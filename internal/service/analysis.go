@@ -21,6 +21,7 @@ type AnalysisService struct {
 	studentRepo       *repository.StudentRepository
 	analysisTaskRepo  *repository.AnalysisTaskRepository
 	faceAnalysisRepo  *repository.FaceAnalysisRepository
+	fileRepo          *repository.FileRepository
 }
 
 func NewAnalysisService(
@@ -31,6 +32,7 @@ func NewAnalysisService(
 	studentRepo *repository.StudentRepository,
 	analysisTaskRepo *repository.AnalysisTaskRepository,
 	faceAnalysisRepo *repository.FaceAnalysisRepository,
+	fileRepo *repository.FileRepository,
 ) *AnalysisService {
 	return &AnalysisService{
 		analysisRepo:      analysisRepo,
@@ -40,6 +42,7 @@ func NewAnalysisService(
 		studentRepo:       studentRepo,
 		analysisTaskRepo:  analysisTaskRepo,
 		faceAnalysisRepo:  faceAnalysisRepo,
+		fileRepo:          fileRepo,
 	}
 }
 
@@ -54,8 +57,21 @@ func (s *AnalysisService) UpdateAnalysisName(update *domain.UpdateAnalysisNameRe
 func (s *AnalysisService) UpdateStatus(update *domain.UpdateStatus) error {
 	return s.analysisRepo.UpdateStatus(update)
 }
+
 func (s *AnalysisService) GetStatus(ctx context.Context, taskId string) ([]*domain.UpdateStatus, error) {
 	return s.analysisTaskRepo.GetStatus(ctx, taskId)
+}
+
+func (s *AnalysisService) FindByTaskId(ctx context.Context, taskId string) (*domain.Analysis, error) {
+	return s.analysisRepo.FindByTaskId(ctx, taskId)
+}
+
+func (s *AnalysisService) FindByImageIdString(ctx context.Context, imageIdStr string) (*domain.Analysis, error) {
+	return s.analysisRepo.FindByImageIdString(ctx, imageIdStr)
+}
+
+func (s *AnalysisService) UpdateFileNameByTaskId(ctx context.Context, taskId, fileName string) error {
+	return s.analysisRepo.UpdateFileNameByTaskId(ctx, taskId, fileName)
 }
 
 // AnalyzeVideo 分析视频 (Legacy/Mock)
@@ -100,8 +116,13 @@ func (s *AnalysisService) MockAnalyzeImage(ctx context.Context, imageId string, 
 	tid, _ := primitive.ObjectIDFromHex(teacherIdStr)
 
 	// 1. 设置状态为处理中
+	imgObjID, _ := primitive.ObjectIDFromHex(imageId)
+	if imgObjID.IsZero() {
+		imgObjID = primitive.NewObjectID()
+	}
 	s.UpdateStatus(&domain.UpdateStatus{
 		TaskId:              imageId,
+		ImageId:             imgObjID,
 		Status:              "processing",
 		TeacherId:           tid,
 		ConfidenceThreshold: threshold,
@@ -143,6 +164,7 @@ func (s *AnalysisService) MockAnalyzeImage(ctx context.Context, imageId string, 
 		// 更新状态为完成
 		s.UpdateStatus(&domain.UpdateStatus{
 			TaskId:    imageId,
+			ImageId:   imgObjID,
 			Status:    "completed",
 			ResultUrl: resultUrl,
 			TeacherId: tid,

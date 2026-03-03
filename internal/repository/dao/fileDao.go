@@ -2,6 +2,8 @@ package dao
 
 import (
 	"classroom-analysis/internal/domain"
+	"context"
+	"errors"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -13,6 +15,8 @@ import (
 type FileDaoInterface interface {
 	UploadImageMessage(ctx *gin.Context, url string) (primitive.ObjectID, error)
 	UploadVideoMessage(ctx *gin.Context, url string) (primitive.ObjectID, error)
+	GetImageMessageById(ctx context.Context, id primitive.ObjectID) (*domain.ImageMessage, error)
+	GetVideoMessageById(ctx context.Context, id primitive.ObjectID) (*domain.VideoMessage, error)
 }
 type FileDao struct {
 	image *mongo.Collection
@@ -64,6 +68,30 @@ func (f *FileDao) UploadVideoMessage(ctx *gin.Context, url string) (primitive.Ob
 
 	insertedID := insertResult.InsertedID.(primitive.ObjectID)
 	return insertedID, nil
+}
+
+func (f *FileDao) GetImageMessageById(ctx context.Context, id primitive.ObjectID) (*domain.ImageMessage, error) {
+	var image domain.ImageMessage
+	err := f.image.FindOne(ctx, bson.M{"_id": id}).Decode(&image)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &image, nil
+}
+
+func (f *FileDao) GetVideoMessageById(ctx context.Context, id primitive.ObjectID) (*domain.VideoMessage, error) {
+	var video domain.VideoMessage
+	err := f.video.FindOne(ctx, bson.M{"_id": id}).Decode(&video)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &video, nil
 }
 
 func NewFileDao(db *mongo.Database) *FileDao {

@@ -12,13 +12,16 @@ import (
 type AnalysisRepository struct {
 	analysisDAO *dao.AnalysisDAO
 	emailDAO    dao.EmailDaoInterface
+	fileRepo    FileInterface
 }
 
 func NewAnalysisRepository(analysisDAO *dao.AnalysisDAO,
-	emailDAO dao.EmailDaoInterface) *AnalysisRepository {
+	emailDAO dao.EmailDaoInterface,
+	fileRepo FileInterface) *AnalysisRepository {
 	return &AnalysisRepository{
 		analysisDAO: analysisDAO,
 		emailDAO:    emailDAO,
+		fileRepo:    fileRepo,
 	}
 }
 
@@ -39,11 +42,19 @@ func (r *AnalysisRepository) UpdateStatus(update *domain.UpdateStatus) error {
 	if err != nil {
 		return err
 	}
-	//err = r.analysisDAO.InsertAvg(update.TaskId)
-	//if err != nil {
-	//	return err
-	//}
 	return nil
+}
+
+func (r *AnalysisRepository) FindByTaskId(ctx context.Context, taskId string) (*domain.Analysis, error) {
+	return r.analysisDAO.FindByTaskId(ctx, taskId)
+}
+
+func (r *AnalysisRepository) FindByImageIdString(ctx context.Context, imageIdStr string) (*domain.Analysis, error) {
+	return r.analysisDAO.FindByImageIdString(ctx, imageIdStr)
+}
+
+func (r *AnalysisRepository) UpdateFileNameByTaskId(ctx context.Context, taskId, fileName string) error {
+	return r.analysisDAO.UpdateFileNameByTaskId(ctx, taskId, fileName)
 }
 func (r *AnalysisRepository) GetRank(ctx context.Context, req *domain.RankRequest) (*domain.RankItem, error) {
 	return r.analysisDAO.GetRankDao(ctx, req)

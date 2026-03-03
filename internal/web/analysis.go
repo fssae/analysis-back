@@ -139,7 +139,6 @@ func (h *TeacherHandler) UpdateAnalysisName(c *gin.Context) {
 		})
 		return
 	}
-	
 
 	if err := h.analysisService.UpdateAnalysisName(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -338,11 +337,66 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 			wsManager.SendTaskStatusUpdate(wsId, "收到空响应", "分析失败", "nil", "响应为空")
 			return
 		}
+		h.logger.Info("收到Kafka响应",
+			zap.String("taskId", taskId),
+			zap.String("respID", resp.ID),
+			zap.String("resultURL", resp.ResultURL))
+
 		h.redis.Set(c, fileId, "STATUS_DONE", 20*time.Minute)
 		resultURL := ""
 		if resp.ResultURL != "" {
 			resultURL = resp.ResultURL
 		}
+
+		analysis, err := h.analysisService.FindByImageIdString(c, fileId)
+		if err != nil {
+			h.logger.Error("查询分析记录失败",
+				zap.String("fileId", fileId),
+				zap.Error(err))
+		} else if analysis != nil {
+			h.logger.Info("查询到分析记录",
+				zap.String("analysisId", analysis.Id.Hex()),
+				zap.String("imageId", analysis.ImageId.Hex()),
+				zap.String("fileName", analysis.FileName))
+
+			var fileName string
+			fileObj, err := h.fileRepo.GetFileMessageById(c, analysis.ImageId, req.AnalysisType)
+			if err != nil {
+				h.logger.Error("查询文件信息失败",
+					zap.String("imageId", analysis.ImageId.Hex()),
+					zap.String("fileType", req.AnalysisType),
+					zap.Error(err))
+			} else if fileObj != nil {
+				if req.AnalysisType == "video" {
+					if video, ok := fileObj.(*domain.VideoMessage); ok {
+						fileName = video.Url
+						h.logger.Info("查询到视频文件信息",
+							zap.String("videoUrl", fileName))
+					}
+				} else {
+					if image, ok := fileObj.(*domain.ImageMessage); ok {
+						fileName = image.Url
+						h.logger.Info("查询到图片文件信息",
+							zap.String("imageUrl", fileName))
+					}
+				}
+			}
+
+			if fileName != "" {
+				err = h.analysisService.UpdateFileNameByTaskId(c, taskId, fileName)
+				if err != nil {
+					h.logger.Error("更新分析文件名失败",
+						zap.String("taskId", taskId),
+						zap.String("fileName", fileName),
+						zap.Error(err))
+				} else {
+					h.logger.Info("成功更新分析文件名",
+						zap.String("taskId", taskId),
+						zap.String("fileName", fileName))
+				}
+			}
+		}
+
 		h.updateTaskStatus(taskId, "completed", resultURL, "", teacherId, req.ConfidenceThreshold)
 		wsManager.SendTaskStatusUpdate(wsId, "completed", "分析成功", resultURL, "")
 	case <-ctx.Done():
@@ -366,8 +420,17 @@ func (h *TeacherHandler) updateTaskStatus(fileId, status, resultUrl, errorMsg st
 		return
 	}
 
+	imageId, err := primitive.ObjectIDFromHex(fileId)
+	if err != nil {
+		h.logger.Warn("fileId不是有效的ObjectID，生成新的ObjectID",
+			zap.String("fileId", fileId),
+			zap.Error(err))
+		imageId = primitive.NewObjectID()
+	}
+
 	updateStatus := domain.UpdateStatus{
 		TaskId:              fileId,
+		ImageId:             imageId,
 		TeacherId:           teacherId,
 		ConfidenceThreshold: confidenceThreshold,
 		Status:              status,

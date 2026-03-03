@@ -340,7 +340,6 @@ func (dao *AnalysisDAO) UpdateStatus(update *domain.UpdateStatus) error {
 
 func (dao *AnalysisDAO) GetTaskStatus(ctx context.Context, taskId string) (*domain.UpdateStatus, error) {
 	var status domain.UpdateStatus
-	// 手动调用 statusCollection
 	err := dao.statusCollection.FindOne(ctx, bson.M{"taskId": taskId}).Decode(&status)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -349,4 +348,56 @@ func (dao *AnalysisDAO) GetTaskStatus(ctx context.Context, taskId string) (*doma
 		return nil, err
 	}
 	return &status, nil
+}
+
+func (dao *AnalysisDAO) FindByTaskId(ctx context.Context, taskId string) (*domain.Analysis, error) {
+	var analysis domain.Analysis
+	err := dao.Coll.FindOne(ctx, bson.M{"taskId": taskId}).Decode(&analysis)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &analysis, nil
+}
+
+func (dao *AnalysisDAO) FindByImageIdString(ctx context.Context, imageIdStr string) (*domain.Analysis, error) {
+	imageId, err := primitive.ObjectIDFromHex(imageIdStr)
+	if err != nil {
+		return nil, err
+	}
+	return dao.FindByImageId(ctx, imageId)
+}
+
+func (dao *AnalysisDAO) UpdateFileNameByTaskId(ctx context.Context, taskId, fileName string) error {
+	status, err := dao.GetTaskStatus(ctx, taskId)
+	if err != nil {
+		return err
+	}
+	if status == nil {
+		return errors.New("status not found for taskId: " + taskId)
+	}
+
+	imageId := status.ImageId
+	if imageId.IsZero() {
+		return errors.New("imageId is zero for taskId: " + taskId)
+	}
+
+	result, err := dao.UpdateOne(
+		ctx,
+		bson.M{"imageid": imageId},
+		bson.M{"$set": bson.M{
+			"fileName": fileName,
+		}},
+	)
+	if err != nil {
+		return err
+	}
+
+	if result.MatchedCount == 0 {
+		return errors.New("analysis not found for imageId: " + imageId.Hex())
+	}
+
+	return nil
 }
