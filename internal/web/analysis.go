@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 )
@@ -279,53 +278,50 @@ func (h *TeacherHandler) GetClassAnalysis(c *gin.Context) {
 
 // performAnalysisAsync 异步执行分析任务，不返回HTTP响应
 func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.TeacherAnalysisRequest, claims *domain.TeacherClaims) {
-	fileId := ""
+	imageId := ""
 	if req.AnalysisType == "video" {
-		fileId = req.VideoId
+		imageId = req.VideoId
 		req.ImageId = req.VideoId
 	} else {
-		fileId = req.ImageId
+		imageId = req.ImageId
 	}
 
 	h.logger.Info("开始异步分析",
 		zap.String("analysisType", req.AnalysisType),
-		zap.String("fileId", fileId),
+		zap.String("imageId", imageId),
 		zap.String("url", req.Url),
 		zap.String("className", req.ClassName),
 		zap.String("courseName", req.CourseName))
 	wsManager := GetAnalysisWSManager()
-	kafkaTaskId := uuid.New().String()
-	req.TaskId = kafkaTaskId
-	message := domain.KafkaMessage{
-		Req: req,
-	}
 	teacherId := claims.Id
 	wsId := claims.TeacherId
-	taskId := fileId
 
 	if h.kafkaWriter == nil {
 		err := fmt.Errorf("kafkaWriter未初始化")
 		h.logger.Error("kafkaWriter为nil", zap.Error(err))
-		h.updateTaskStatus(taskId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
+		h.updateTaskStatus(imageId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
 		wsManager.SendTaskStatusUpdate(wsId, "error", "分析失败", "nil", err.Error())
 		return
 	}
 
+	message := domain.KafkaMessage{
+		Req: req,
+	}
 	err := h.kafkaWriter.Write(message)
 	if err != nil {
 		h.logger.Error("发送Kafka消息失败",
-			zap.String("fileId", taskId),
+			zap.String("imageId", imageId),
 			zap.Error(err),
 			zap.Any("message", message))
-		h.updateTaskStatus(taskId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
+		h.updateTaskStatus(imageId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
 		wsManager.SendTaskStatusUpdate(wsId, "error", "分析失败", "nil", err.Error())
 		return
 	}
 	wsManager.SendTaskStatusUpdate(wsId, "已传入Kafka消息", "异步分析中...", "nil", "nil")
-	resultChan, ctx, cancel, err := h.ReadKafka(c, fileId)
+	resultChan, ctx, cancel, err := h.ReadKafka(c, imageId)
 	if err != nil {
 		fmt.Printf("收到空响应: %v\n", err)
-		h.updateTaskStatus(taskId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
+		h.updateTaskStatus(imageId, "error", "", err.Error(), teacherId, req.ConfidenceThreshold)
 		wsManager.SendTaskStatusUpdate(wsId, "创建Kafka消费者失败", "分析失败", "nil", "nil")
 		return
 	}
@@ -333,46 +329,46 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 	select {
 	case resp := <-resultChan:
 		if resp == nil {
-			h.updateTaskStatus(taskId, "error", "", "收到空响应", teacherId, req.ConfidenceThreshold)
+			h.updateTaskStatus(imageId, "error", "", "收到空响应", teacherId, req.ConfidenceThreshold)
 			wsManager.SendTaskStatusUpdate(wsId, "收到空响应", "分析失败", "nil", "响应为空")
 			return
 		}
 		h.logger.Info("收到Kafka响应",
-			zap.String("taskId", taskId),
+			zap.String("taskId", resp.ID),
 			zap.String("respID", resp.ID),
 			zap.String("resultURL", resp.ResultURL))
 
-		h.redis.Set(c, fileId, "STATUS_DONE", 20*time.Minute)
+		h.redis.Set(c, imageId, "STATUS_DONE", 20*time.Minute)
 		resultURL := ""
 		if resp.ResultURL != "" {
 			resultURL = resp.ResultURL
 		}
 
 		if req.FileName != "" {
-			err = h.analysisService.UpdateFileNameByTaskId(c, taskId, req.FileName)
+			err = h.analysisService.UpdateFileNameByTaskId(c, resp.ID, req.FileName)
 			if err != nil {
 				h.logger.Error("更新分析文件名失败",
-					zap.String("taskId", taskId),
+					zap.String("taskId", resp.ID),
 					zap.String("fileName", req.FileName),
 					zap.Error(err))
 			} else {
 				h.logger.Info("成功更新分析文件名",
-					zap.String("taskId", taskId),
+					zap.String("taskId", resp.ID),
 					zap.String("fileName", req.FileName))
 			}
 		}
 
-		h.updateTaskStatus(taskId, "completed", resultURL, "", teacherId, req.ConfidenceThreshold)
+		h.updateTaskStatus(imageId, "completed", resultURL, "", teacherId, req.ConfidenceThreshold)
 		wsManager.SendTaskStatusUpdate(wsId, "completed", "分析成功", resultURL, "")
 	case <-ctx.Done():
-		h.updateTaskStatus(taskId, "timeout", "", ctx.Err().Error(), teacherId, req.ConfidenceThreshold)
+		h.updateTaskStatus(imageId, "timeout", "", ctx.Err().Error(), teacherId, req.ConfidenceThreshold)
 		wsManager.SendTaskStatusUpdate(wsId, "超时", "分析失败", "nil", ctx.Err().Error())
 	}
 }
 
-func (h *TeacherHandler) updateTaskStatus(fileId, status, resultUrl, errorMsg string, teacherId primitive.ObjectID, confidenceThreshold float64) {
+func (h *TeacherHandler) updateTaskStatus(imageId, status, resultUrl, errorMsg string, teacherId primitive.ObjectID, confidenceThreshold float64) {
 	h.logger.Info("更新任务状态",
-		zap.String("fileId", fileId),
+		zap.String("imageId", imageId),
 		zap.String("status", status),
 		zap.String("resultUrl", resultUrl),
 		zap.String("errorMsg", errorMsg),
@@ -380,22 +376,22 @@ func (h *TeacherHandler) updateTaskStatus(fileId, status, resultUrl, errorMsg st
 
 	if h.analysisService == nil {
 		h.logger.Error("analysisService为nil，无法更新任务状态",
-			zap.String("taskId", fileId),
+			zap.String("imageId", imageId),
 			zap.String("status", status))
 		return
 	}
 
-	imageId, err := primitive.ObjectIDFromHex(fileId)
+	oid, err := primitive.ObjectIDFromHex(imageId)
 	if err != nil {
-		h.logger.Warn("fileId不是有效的ObjectID，生成新的ObjectID",
-			zap.String("fileId", fileId),
+		h.logger.Warn("imageId不是有效的ObjectID，生成新的ObjectID",
+			zap.String("imageId", imageId),
 			zap.Error(err))
-		imageId = primitive.NewObjectID()
+		oid = primitive.NewObjectID()
 	}
 
 	updateStatus := domain.UpdateStatus{
-		TaskId:              fileId,
-		ImageId:             imageId,
+		TaskId:              imageId,
+		ImageId:             oid,
 		TeacherId:           teacherId,
 		ConfidenceThreshold: confidenceThreshold,
 		Status:              status,
@@ -405,13 +401,13 @@ func (h *TeacherHandler) updateTaskStatus(fileId, status, resultUrl, errorMsg st
 
 	if err := h.analysisService.UpdateStatus(&updateStatus); err != nil {
 		h.logger.Error("更新任务状态失败",
-			zap.String("taskId", fileId),
+			zap.String("imageId", imageId),
 			zap.String("status", status),
 			zap.Error(err))
 		return
 	}
 	h.logger.Info("任务状态更新成功",
-		zap.String("taskId", fileId),
+		zap.String("imageId", imageId),
 		zap.String("status", status))
 }
 
