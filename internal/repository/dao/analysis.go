@@ -371,9 +371,14 @@ func (dao *AnalysisDAO) FindByImageIdString(ctx context.Context, imageIdStr stri
 }
 
 func (dao *AnalysisDAO) UpdateFileNameByTaskId(ctx context.Context, taskId, fileName string) error {
+	objectID, err := primitive.ObjectIDFromHex(taskId)
+	if err != nil {
+		return err
+	}
+
 	result, err := dao.UpdateOne(
 		ctx,
-		bson.M{"taskId": taskId},
+		bson.M{"imagid": objectID},
 		bson.M{"$set": bson.M{
 			"fileName": fileName,
 		}},
