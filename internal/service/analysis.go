@@ -208,7 +208,7 @@ func (s *AnalysisService) processImageAnalysis(ctx context.Context, analysis *do
 
 // GetHistory 获取分析历史
 func (s *AnalysisService) GetHistory(ctx context.Context, fileType string) ([]*domain.Analysis, error) {
-	analyses, err := s.analysisRepo.FindByTeacherId(ctx, primitive.NilObjectID, 20)
+	analyses, err := s.analysisRepo.FindByTeacherId(ctx, 20)
 	if err != nil {
 		return nil, err
 	}

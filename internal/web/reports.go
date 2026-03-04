@@ -55,21 +55,11 @@ func (h *TeacherHandler) GetReport(c *gin.Context) {
 
 // GetReportList 获取报告列表
 func (h *TeacherHandler) GetReportList(c *gin.Context) {
-	claims, exists := c.Get("claims")
+	_, exists := c.Get("claims")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"code": 401,
 			"msg":  "未授权",
-		})
-		return
-	}
-
-	teacherClaims := claims.(domain.TeacherClaims)
-	_, err := primitive.ObjectIDFromHex(teacherClaims.TeacherId)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  "教师ID格式错误",
 		})
 		return
 	}

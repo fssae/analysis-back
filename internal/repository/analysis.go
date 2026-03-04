@@ -74,8 +74,8 @@ func (r *AnalysisRepository) FindById(ctx context.Context, id primitive.ObjectID
 }
 
 // FindByTeacherId 根据教师ID查找分析记录
-func (r *AnalysisRepository) FindByTeacherId(ctx context.Context, teacherId primitive.ObjectID, limit int64) ([]*domain.Analysis, error) {
-	return r.analysisDAO.FindByTeacherId(ctx, teacherId, limit)
+func (r *AnalysisRepository) FindByTeacherId(ctx context.Context, limit int64) ([]*domain.Analysis, error) {
+	return r.analysisDAO.FindByTeacherId(ctx, limit)
 }
 
 // Update 更新分析记录

@@ -33,8 +33,8 @@ func (dao *AnalysisDAO) FindRecentAnalysis(ctx context.Context) ([]*domain.Analy
 }
 
 // FindByTeacherId 根据 TeacherID 查找
-func (dao *AnalysisDAO) FindByTeacherId(ctx context.Context, teacherId primitive.ObjectID, limit int64) ([]*domain.Analysis, error) {
-	list, _, err := dao.FindList(ctx, bson.M{"teacherId": teacherId}, 0, limit, bson.D{{Key: "createdAt", Value: -1}})
+func (dao *AnalysisDAO) FindByTeacherId(ctx context.Context, limit int64) ([]*domain.Analysis, error) {
+	list, _, err := dao.FindList(ctx, bson.M{}, 0, limit, bson.D{{Key: "createdAt", Value: -1}})
 	return list, err
 }
 
