@@ -45,8 +45,7 @@ func (e *EmailRepository) GetUrlsByTeacherId(c context.Context, teacherId primit
 		}
 
 		analysis, err := e.analysisDao.FindById(c, taskObjectId)
-		if err != nil {
-			// Log the error but continue processing other URLs
+		if err != nil || analysis == nil {
 			continue
 		}
 

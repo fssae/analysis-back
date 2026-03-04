@@ -216,10 +216,10 @@ func (s *AnalysisService) GetHistory(ctx context.Context, fileType string, page,
 
 	// 使用聚合查询获取指定类型的分析记录
 	pipeline := mongo.Pipeline{
-		{{"$match", bson.M{"filetype": bson.D{{Key: "$const", Value: fileType}}}}},
-		{{"$sort", bson.D{{Key: "timestamp", Value: bson.D{{Key: "$const", Value: -1}}}}}},
-		{{"$skip", bson.D{{Key: "$const", Value: skip}}}},
-		{{"$limit", bson.D{{Key: "$const", Value: limit}}}},
+		{{"$match", bson.M{"filetype": fileType}}},
+		{{"$sort", bson.D{{Key: "timestamp", Value: -1}}}},
+		{{"$skip", skip}},
+		{{"$limit", limit}},
 	}
 
 	cursor, err := s.analysisRepo.GetAnalysisDAO().Coll.Aggregate(ctx, pipeline)

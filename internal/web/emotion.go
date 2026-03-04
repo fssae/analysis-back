@@ -90,6 +90,14 @@ func (h *TeacherHandler) GetEmotionHeatmap(c *gin.Context) {
 		return
 	}
 
+	if analysis == nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"code": 404,
+			"msg":  "分析记录不存在",
+		})
+		return
+	}
+
 	// 构建热力图数据
 	heatmapData := buildEmotionHeatmap(analysis)
 
@@ -128,12 +136,12 @@ func buildEmotionAnalysisResponse(analysis *domain.Analysis) *domain.EmotionAnal
 
 		// 构建学生情绪信息
 		studentEmotion := domain.StudentEmotion{
-			FaceIndex:         face.FaceIndex,
-			CurrentEmotion:    face.Emotion,
+			FaceIndex:          face.FaceIndex,
+			CurrentEmotion:     face.Emotion,
 			EmotionFluctuation: face.EmotionFluctuation,
-			RecentEmotions:    face.RecentEmotions,
-			EmotionStability:  stability,
-			AverageFatigue:    face.FatigueScore,
+			RecentEmotions:     face.RecentEmotions,
+			EmotionStability:   stability,
+			AverageFatigue:     face.FatigueScore,
 		}
 		students = append(students, studentEmotion)
 	}
@@ -162,14 +170,14 @@ func buildEmotionAnalysisResponse(analysis *domain.Analysis) *domain.EmotionAnal
 	// 构建时间序列数据（简化版本，实际应该从视频帧中提取）
 	timestamps := []string{"10:00", "10:05", "10:10", "10:15", "10:20", "10:25", "10:30"}
 	studentData := make([]domain.StudentEmotionSeries, 0, len(students))
-	
+
 	for _, student := range students {
 		// 简化处理：使用最近情绪作为时间序列
 		emotions := student.RecentEmotions
 		if len(emotions) == 0 {
 			emotions = []string{student.CurrentEmotion}
 		}
-		
+
 		// 构建波动值序列（简化）
 		fluctuationValues := make([]float64, len(emotions))
 		for i := range fluctuationValues {
@@ -186,10 +194,10 @@ func buildEmotionAnalysisResponse(analysis *domain.Analysis) *domain.EmotionAnal
 	// 构建响应
 	response := &domain.EmotionAnalysisResponse{
 		Summary: domain.EmotionSummary{
-			TotalStudents:            totalStudents,
-			CourseName:               analysis.CourseName,
-			ClassName:                analysis.ClassName,
-			Timestamp:                analysis.Timestamp,
+			TotalStudents:             totalStudents,
+			CourseName:                analysis.CourseName,
+			ClassName:                 analysis.ClassName,
+			Timestamp:                 analysis.Timestamp,
 			AverageEmotionFluctuation: avgFluctuation,
 		},
 		EmotionDistribution: emotionDistribution,
@@ -208,7 +216,7 @@ func buildEmotionAnalysisResponse(analysis *domain.Analysis) *domain.EmotionAnal
 // buildEmotionHeatmap 构建情绪热力图数据
 func buildEmotionHeatmap(analysis *domain.Analysis) *domain.EmotionHeatmapResponse {
 	emotionLabels := []string{"happy", "neutral", "sad", "angry", "surprise", "fear", "disgust"}
-	
+
 	// 统计每个情绪的数量
 	emotionCount := make(map[string]int)
 	for _, face := range analysis.Faces {
@@ -220,15 +228,15 @@ func buildEmotionHeatmap(analysis *domain.Analysis) *domain.EmotionHeatmapRespon
 	// 构建热力图数据（简化版本，单时间点）
 	data := make([][]int, 1)
 	data[0] = make([]int, len(emotionLabels))
-	
+
 	for i, emotion := range emotionLabels {
 		data[0][i] = emotionCount[emotion]
 	}
 
 	return &domain.EmotionHeatmapResponse{
-		Timestamps:   []string{analysis.Timestamp.Format("15:04")},
-		Emotions:     emotionLabels,
-		Data:         data,
+		Timestamps:    []string{analysis.Timestamp.Format("15:04")},
+		Emotions:      emotionLabels,
+		Data:          data,
 		TotalStudents: len(analysis.Faces),
 	}
 }
@@ -337,6 +345,14 @@ func (h *TeacherHandler) GetBlinkAnalysis(c *gin.Context) {
 		return
 	}
 
+	if analysis == nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"code": 404,
+			"msg":  "分析记录不存在",
+		})
+		return
+	}
+
 	response := buildBlinkAnalysisResponse(analysis)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -349,14 +365,14 @@ func (h *TeacherHandler) GetBlinkAnalysis(c *gin.Context) {
 // buildFatigueAnalysisResponse 构建疲劳度分析响应
 func buildFatigueAnalysisResponse(analysis *domain.Analysis) *domain.FatigueAnalysisResponse {
 	totalStudents := len(analysis.Faces)
-	
+
 	// 疲劳度等级统计
 	fatigueDist := map[string]int{"low": 0, "medium": 0, "high": 0}
 	var totalFatigue float64 = 0
 	var totalBlink float64 = 0
 	var totalYawn int = 0
 	highFatigueCount := 0
-	
+
 	students := make([]domain.StudentFatigue, 0, totalStudents)
 	alerts := make([]domain.FatigueAlert, 0)
 
@@ -373,7 +389,7 @@ func buildFatigueAnalysisResponse(analysis *domain.Analysis) *domain.FatigueAnal
 		// 高疲劳计数
 		if face.FatigueScore >= 0.6 {
 			highFatigueCount++
-			
+
 			// 添加预警
 			alertLevel := "medium"
 			recommendation := "建议进行课堂互动"
@@ -381,7 +397,7 @@ func buildFatigueAnalysisResponse(analysis *domain.Analysis) *domain.FatigueAnal
 				alertLevel = "high"
 				recommendation = "建议休息或变换教学方式"
 			}
-			
+
 			alerts = append(alerts, domain.FatigueAlert{
 				FaceIndex:      face.FaceIndex,
 				FatigueScore:   face.FatigueScore,
@@ -428,7 +444,7 @@ func buildFatigueAnalysisResponse(analysis *domain.Analysis) *domain.FatigueAnal
 		"medium": []float64{0.3, 0.6},
 		"high":   0.6,
 	}
-	
+
 	for key, count := range fatigueDist {
 		percentage := float64(0)
 		if totalStudents > 0 {
@@ -436,9 +452,9 @@ func buildFatigueAnalysisResponse(analysis *domain.Analysis) *domain.FatigueAnal
 			percentage = float64(int(percentage*10)) / 10
 		}
 		fatigueDistribution[key] = domain.FatigueStat{
-			Count:     count,
+			Count:      count,
 			Percentage: percentage,
-			Threshold: thresholds[key],
+			Threshold:  thresholds[key],
 		}
 	}
 
@@ -447,7 +463,7 @@ func buildFatigueAnalysisResponse(analysis *domain.Analysis) *domain.FatigueAnal
 	classAverage := make([]float64, len(timestamps))
 	classMax := make([]float64, len(timestamps))
 	classMin := make([]float64, len(timestamps))
-	
+
 	// 简化处理：使用当前值填充
 	for i := range timestamps {
 		classAverage[i] = avgFatigue
@@ -489,7 +505,7 @@ func buildFatigueAnalysisResponse(analysis *domain.Analysis) *domain.FatigueAnal
 func buildBlinkAnalysisResponse(analysis *domain.Analysis) *domain.BlinkAnalysisResponse {
 	totalStudents := len(analysis.Faces)
 	var totalBlink float64 = 0
-	
+
 	students := make([]domain.StudentBlinkRate, 0, totalStudents)
 	distribution := map[string]int{"10-15": 0, "15-20": 0, "20-25": 0, "25+": 0}
 

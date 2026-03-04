@@ -203,6 +203,12 @@ func (h *TeacherHandler) GetImageAnalysisResult(c *gin.Context) {
 		c.JSON(500, gin.H{"success": false, "msg": err.Error()})
 		return
 	}
+
+	if result == nil {
+		c.JSON(404, gin.H{"success": false, "msg": "分析记录不存在"})
+		return
+	}
+
 	c.JSON(200, gin.H{"success": true, "data": result})
 }
 func (h *TeacherHandler) GetImageAnalysisDetail(c *gin.Context) {

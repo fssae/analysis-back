@@ -90,8 +90,8 @@ func (dao *AnalysisDAO) CountByTeacherId(ctx context.Context) (int64, int64, int
 		{{"$match", bson.M{"faces": bson.M{"$exists": true, "$ne": []interface{}{}}}}},
 		{{"$unwind", "$faces"}},
 		{{"$group", bson.M{
-			"_id":   bson.D{{Key: "$const", Value: nil}},
-			"total": bson.M{"$sum": bson.D{{Key: "$const", Value: 1}}},
+			"_id":   nil,
+			"total": bson.M{"$sum": 1},
 		}}},
 	}
 
@@ -194,13 +194,13 @@ func (dao *AnalysisDAO) GetFatigueTimeSeries(ctx context.Context, analysisId pri
 		{{"$match", bson.M{"_id": analysisId}}},
 		{{"$unwind", "$faces"}},
 		{{"$group", bson.M{
-			"_id":          bson.D{{Key: "$const", Value: "$className"}},
-			"avgFatigue":   bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.fatigue_score"}}},
-			"maxFatigue":   bson.M{"$max": bson.D{{Key: "$const", Value: "$faces.fatigue_score"}}},
-			"minFatigue":   bson.M{"$min": bson.D{{Key: "$const", Value: "$faces.fatigue_score"}}},
-			"avgFocus":     bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.focus_score"}}},
-			"avgBlinkRate": bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.blink_rate"}}},
-			"avgYawnCount": bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.yawn_count"}}},
+			"_id":          "$className",
+			"avgFatigue":   bson.M{"$avg": "$faces.fatigue_score"},
+			"maxFatigue":   bson.M{"$max": "$faces.fatigue_score"},
+			"minFatigue":   bson.M{"$min": "$faces.fatigue_score"},
+			"avgFocus":     bson.M{"$avg": "$faces.focus_score"},
+			"avgBlinkRate": bson.M{"$avg": "$faces.blink_rate"},
+			"avgYawnCount": bson.M{"$avg": "$faces.yawn_count"},
 		}}},
 	}
 
@@ -228,12 +228,12 @@ func (dao *AnalysisDAO) GetEmotionTimeSeries(ctx context.Context, analysisId pri
 		{{"$match", bson.M{"_id": analysisId}}},
 		{{"$unwind", "$faces"}},
 		{{"$group", bson.M{
-			"_id":            bson.D{{Key: "$const", Value: "$className"}},
-			"angryCount":     bson.M{"$sum": bson.D{{Key: "$cond", Value: []interface{}{bson.M{"$eq": []interface{}{bson.D{{Key: "$const", Value: "$faces.emotion"}}, bson.D{{Key: "$const", Value: "angry"}}}}, bson.D{{Key: "$const", Value: 1}}, bson.D{{Key: "$const", Value: 0}}}}}},
-			"happyCount":     bson.M{"$sum": bson.D{{Key: "$cond", Value: []interface{}{bson.M{"$eq": []interface{}{bson.D{{Key: "$const", Value: "$faces.emotion"}}, bson.D{{Key: "$const", Value: "happy"}}}}, bson.D{{Key: "$const", Value: 1}}, bson.D{{Key: "$const", Value: 0}}}}}},
-			"neutralCount":   bson.M{"$sum": bson.D{{Key: "$cond", Value: []interface{}{bson.M{"$eq": []interface{}{bson.D{{Key: "$const", Value: "$faces.emotion"}}, bson.D{{Key: "$const", Value: "neutral"}}}}, bson.D{{Key: "$const", Value: 1}}, bson.D{{Key: "$const", Value: 0}}}}}},
-			"sadCount":       bson.M{"$sum": bson.D{{Key: "$cond", Value: []interface{}{bson.M{"$eq": []interface{}{bson.D{{Key: "$const", Value: "$faces.emotion"}}, bson.D{{Key: "$const", Value: "sad"}}}}, bson.D{{Key: "$const", Value: 1}}, bson.D{{Key: "$const", Value: 0}}}}}},
-			"avgFluctuation": bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.emotion_fluctuation"}}},
+			"_id":            "$className",
+			"angryCount":     bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "angry"}}, 1, 0}}},
+			"happyCount":     bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "happy"}}, 1, 0}}},
+			"neutralCount":   bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "neutral"}}, 1, 0}}},
+			"sadCount":       bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "sad"}}, 1, 0}}},
+			"avgFluctuation": bson.M{"$avg": "$faces.emotion_fluctuation"},
 		}}},
 	}
 
@@ -306,15 +306,15 @@ func (dao *AnalysisDAO) GetRankDao(ctx context.Context, req *domain.RankRequest)
 		{{"$match", filter}},
 		{{"$unwind", "$faces"}},
 		{{"$group", bson.M{
-			"_id":           bson.D{{Key: "$const", Value: groupID}},
-			"className":     bson.M{"$first": bson.D{{Key: "$const", Value: "$className"}}},
-			"courseName":    bson.M{"$first": bson.D{{Key: "$const", Value: "$courseName"}}},
-			"avgFocusScore": bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.focus_score"}}},
-			"timestamp":     bson.M{"$first": bson.D{{Key: "$const", Value: "$timestamp"}}},
-			"resultUrl":     bson.M{"$first": bson.D{{Key: "$const", Value: "$result_url"}}},
+			"_id":           groupID,
+			"className":     bson.M{"$first": "$className"},
+			"courseName":    bson.M{"$first": "$courseName"},
+			"avgFocusScore": bson.M{"$avg": "$faces.focus_score"},
+			"timestamp":     bson.M{"$first": "$timestamp"},
+			"resultUrl":     bson.M{"$first": "$result_url"},
 		}}},
 		{{"$addFields", bson.M{
-			"avgFocusScore": bson.M{"$round": []interface{}{bson.D{{Key: "$const", Value: "$avgFocusScore"}}, bson.D{{Key: "$const", Value: 2}}}},
+			"avgFocusScore": bson.M{"$round": []interface{}{"$avgFocusScore", 2}},
 		}}},
 		{{"$facet", bson.M{
 			"data": []bson.M{
@@ -370,22 +370,22 @@ func (dao *AnalysisDAO) GetRankDao(ctx context.Context, req *domain.RankRequest)
 func (dao *AnalysisDAO) InsertAvg(taskId string) error {
 	pipeline := mongo.Pipeline{
 		{{"$match", bson.M{
-			"Id":    bson.D{{Key: "$const", Value: taskId}},
+			"Id":    taskId,
 			"faces": bson.M{"$exists": true, "$ne": []interface{}{}},
 		}}},
 		{{"$unwind", "$faces"}},
 		{{"$group", bson.M{
-			"_id":           bson.D{{Key: "$const", Value: "$taskId"}},
-			"className":     bson.M{"$first": bson.D{{Key: "$const", Value: "$className"}}},
-			"courseName":    bson.M{"$first": bson.D{{Key: "$const", Value: "$courseName"}}},
-			"avgFocusScore": bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.focus_score"}}},
-			"timestamp":     bson.M{"$first": bson.D{{Key: "$const", Value: "$timestamp"}}},
-			"resultUrl":     bson.M{"$first": bson.D{{Key: "$const", Value: "$result_url"}}},
+			"_id":           "$taskId",
+			"className":     bson.M{"$first": "$className"},
+			"courseName":    bson.M{"$first": "$courseName"},
+			"avgFocusScore": bson.M{"$avg": "$faces.focus_score"},
+			"timestamp":     bson.M{"$first": "$timestamp"},
+			"resultUrl":     bson.M{"$first": "$result_url"},
 		}}},
 		{{"$merge", bson.M{
-			"into":           bson.D{{Key: "$const", Value: "analysis"}},
-			"whenMatched":    bson.D{{Key: "$const", Value: "merge"}},
-			"whenNotMatched": bson.D{{Key: "$const", Value: "discard"}},
+			"into":           "analysis",
+			"whenMatched":    "merge",
+			"whenNotMatched": "discard",
 		}}},
 	}
 
