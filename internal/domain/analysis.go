@@ -367,3 +367,24 @@ type BlinkRangeStat struct {
 	Range string `json:"range"`
 	Count int    `json:"count"`
 }
+
+// TimeSeriesPoint 时间序列数据点
+type TimeSeriesPoint struct {
+	ID           string  `bson:"_id" json:"id"`
+	AvgFatigue   float64 `bson:"avgFatigue" json:"avgFatigue"`
+	MaxFatigue   float64 `bson:"maxFatigue" json:"maxFatigue"`
+	MinFatigue   float64 `bson:"minFatigue" json:"minFatigue"`
+	AvgFocus     float64 `bson:"avgFocus" json:"avgFocus"`
+	AvgBlinkRate float64 `bson:"avgBlinkRate" json:"avgBlinkRate"`
+	AvgYawnCount float64 `bson:"avgYawnCount" json:"avgYawnCount"`
+}
+
+// EmotionTimeSeriesPoint 情绪时间序列数据点
+type EmotionTimeSeriesPoint struct {
+	ID             string  `bson:"_id" json:"id"`
+	AngryCount     int     `bson:"angryCount" json:"angryCount"`
+	HappyCount     int     `bson:"happyCount" json:"happyCount"`
+	NeutralCount   int     `bson:"neutralCount" json:"neutralCount"`
+	SadCount       int     `bson:"sadCount" json:"sadCount"`
+	AvgFluctuation float64 `bson:"avgFluctuation" json:"avgFluctuation"`
+}

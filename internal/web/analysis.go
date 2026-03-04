@@ -154,7 +154,14 @@ func (h *TeacherHandler) UpdateAnalysisName(c *gin.Context) {
 
 // GetImageHistory 获取图片分析历史
 func (h *TeacherHandler) GetImageHistory(c *gin.Context) {
-	history, err := h.analysisService.GetHistory(c.Request.Context(), "image")
+	// 支持分页参数
+	page := c.DefaultQuery("page", "1")
+	pageSize := c.DefaultQuery("pageSize", "20")
+
+	pageInt, _ := strconv.Atoi(page)
+	pageSizeInt, _ := strconv.Atoi(pageSize)
+
+	history, total, err := h.analysisService.GetHistory(c.Request.Context(), "image", pageInt, pageSizeInt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code": 500,
@@ -165,7 +172,10 @@ func (h *TeacherHandler) GetImageHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"msg":  "success",
-		"data": history,
+		"data": gin.H{
+			"list":  history,
+			"total": total,
+		},
 	})
 }
 func (h *TeacherHandler) GetVideoHistory(c *gin.Context) {

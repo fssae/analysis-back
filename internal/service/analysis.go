@@ -10,7 +10,9 @@ import (
 
 	// "mime/multipart" // 已移除
 	// "github.com/google/uuid" // 已移除
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type AnalysisService struct {
@@ -206,19 +208,38 @@ func (s *AnalysisService) processImageAnalysis(ctx context.Context, analysis *do
 	s.analysisRepo.Update(ctx, analysis)
 }
 
-// GetHistory 获取分析历史
-func (s *AnalysisService) GetHistory(ctx context.Context, fileType string) ([]*domain.Analysis, error) {
-	analyses, err := s.analysisRepo.FindByTeacherId(ctx, 20)
+// GetHistory 获取分析历史（支持分页）
+func (s *AnalysisService) GetHistory(ctx context.Context, fileType string, page, pageSize int) ([]*domain.Analysis, int64, error) {
+	// 计算跳过数量
+	skip := int64((page - 1) * pageSize)
+	limit := int64(pageSize)
+
+	// 使用聚合查询获取指定类型的分析记录
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.M{"filetype": bson.D{{Key: "$const", Value: fileType}}}}},
+		{{"$sort", bson.D{{Key: "timestamp", Value: bson.D{{Key: "$const", Value: -1}}}}}},
+		{{"$skip", bson.D{{Key: "$const", Value: skip}}}},
+		{{"$limit", bson.D{{Key: "$const", Value: limit}}}},
+	}
+
+	cursor, err := s.analysisRepo.GetAnalysisDAO().Coll.Aggregate(ctx, pipeline)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	var result []*domain.Analysis
-	for _, analysis := range analyses {
-		if analysis.FileType == fileType {
-			result = append(result, analysis)
-		}
+	defer cursor.Close(ctx)
+
+	var analyses []*domain.Analysis
+	if err := cursor.All(ctx, &analyses); err != nil {
+		return nil, 0, err
 	}
-	return result, nil
+
+	// 获取总数
+	total, err := s.analysisRepo.GetAnalysisDAO().Count(ctx, bson.M{"filetype": fileType})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return analyses, total, nil
 }
 
 // GetAnalysisResult 获取单条分析结果

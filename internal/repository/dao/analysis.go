@@ -55,7 +55,7 @@ func (dao *AnalysisDAO) Create(ctx context.Context, analysis *domain.Analysis) e
 
 // FindById 根据ID查找 (根据 imageid 字段，保持原有业务逻辑)
 func (dao *AnalysisDAO) FindById(ctx context.Context, id primitive.ObjectID) (*domain.Analysis, error) {
-	return dao.BaseDAO.FindOne(ctx, bson.M{"imageid": id})
+	return dao.BaseDAO.FindOne(ctx, bson.M{"_id": id})
 }
 
 // FindByImageId 根据 ImageID 查找
@@ -71,7 +71,7 @@ func (dao *AnalysisDAO) Update(ctx context.Context, analysis *domain.Analysis) e
 	return err
 }
 
-// CountByTeacherId 统计逻辑 (保持业务逻辑，但使用 BaseDAO 简化)
+// CountByTeacherId 统计逻辑 (优化为使用聚合查询)
 func (dao *AnalysisDAO) CountByTeacherId(ctx context.Context) (int64, int64, int64, int64, error) {
 	// 1. 统计图片
 	totalImages, err := dao.Count(ctx, bson.M{"filetype": "image"})
@@ -84,21 +84,34 @@ func (dao *AnalysisDAO) CountByTeacherId(ctx context.Context) (int64, int64, int
 		return 0, 0, 0, 0, err
 	}
 
-	// 3. 统计人脸总数 (这里的逻辑比较重，建议未来优化为聚合查询)
-	// 为了不破坏原有逻辑，这里我们还是查出来遍历，但使用 FindList 简化写法
-	// 注意：这里 limit 传 0 表示查所有，慎用，数据量大建议用 Aggregate $sum
-	allData, _, err := dao.FindList(ctx, bson.M{}, 0, 0, nil)
+	// 3. 统计人脸总数 (使用聚合查询，避免加载所有数据到内存)
+	// 使用 $sum 直接在数据库层面统计，避免遍历
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.M{"faces": bson.M{"$exists": true, "$ne": []interface{}{}}}}},
+		{{"$unwind", "$faces"}},
+		{{"$group", bson.M{
+			"_id":   bson.D{{Key: "$const", Value: nil}},
+			"total": bson.M{"$sum": bson.D{{Key: "$const", Value: 1}}},
+		}}},
+	}
+
+	cursor, err := dao.Coll.Aggregate(ctx, pipeline)
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
+	defer cursor.Close(ctx)
 
-	totalFaces := int64(0)
-	totalDoc := int64(len(allData))
-	for _, analysis := range allData {
-		totalFaces += int64(len(analysis.Faces))
+	var totalFaces int64 = 0
+	if cursor.Next(ctx) {
+		var result struct {
+			Total int64 `bson:"total"`
+		}
+		if err := cursor.Decode(&result); err == nil {
+			totalFaces = result.Total
+		}
 	}
 
-	return totalImages, totalVideos, totalFaces, totalDoc, nil
+	return totalImages, totalVideos, totalFaces, totalImages + totalVideos, nil
 }
 
 // GetLastAnalysisTime 获取最后分析时间
@@ -174,6 +187,73 @@ func (dao *AnalysisDAO) FindClassAnalysisList(ctx context.Context, courseName, c
 	return dao.FindList(ctx, filter, int64((page-1)*pageSize), int64(pageSize), bson.D{{Key: "timestamp", Value: -1}})
 }
 
+// GetFatigueTimeSeries 获取疲劳度时间序列数据
+func (dao *AnalysisDAO) GetFatigueTimeSeries(ctx context.Context, analysisId primitive.ObjectID) ([]domain.TimeSeriesPoint, error) {
+	// 使用聚合查询获取时间序列数据
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.M{"_id": analysisId}}},
+		{{"$unwind", "$faces"}},
+		{{"$group", bson.M{
+			"_id":          bson.D{{Key: "$const", Value: "$className"}},
+			"avgFatigue":   bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.fatigue_score"}}},
+			"maxFatigue":   bson.M{"$max": bson.D{{Key: "$const", Value: "$faces.fatigue_score"}}},
+			"minFatigue":   bson.M{"$min": bson.D{{Key: "$const", Value: "$faces.fatigue_score"}}},
+			"avgFocus":     bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.focus_score"}}},
+			"avgBlinkRate": bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.blink_rate"}}},
+			"avgYawnCount": bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.yawn_count"}}},
+		}}},
+	}
+
+	cursor, err := dao.Coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var result []domain.TimeSeriesPoint
+	if cursor.Next(ctx) {
+		var point domain.TimeSeriesPoint
+		if err := cursor.Decode(&point); err == nil {
+			result = append(result, point)
+		}
+	}
+
+	return result, nil
+}
+
+// GetEmotionTimeSeries 获取情绪时间序列数据
+func (dao *AnalysisDAO) GetEmotionTimeSeries(ctx context.Context, analysisId primitive.ObjectID) ([]domain.EmotionTimeSeriesPoint, error) {
+	// 使用聚合查询获取情绪时间序列数据
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.M{"_id": analysisId}}},
+		{{"$unwind", "$faces"}},
+		{{"$group", bson.M{
+			"_id":            bson.D{{Key: "$const", Value: "$className"}},
+			"angryCount":     bson.M{"$sum": bson.D{{Key: "$cond", Value: []interface{}{bson.M{"$eq": []interface{}{bson.D{{Key: "$const", Value: "$faces.emotion"}}, bson.D{{Key: "$const", Value: "angry"}}}}, bson.D{{Key: "$const", Value: 1}}, bson.D{{Key: "$const", Value: 0}}}}}},
+			"happyCount":     bson.M{"$sum": bson.D{{Key: "$cond", Value: []interface{}{bson.M{"$eq": []interface{}{bson.D{{Key: "$const", Value: "$faces.emotion"}}, bson.D{{Key: "$const", Value: "happy"}}}}, bson.D{{Key: "$const", Value: 1}}, bson.D{{Key: "$const", Value: 0}}}}}},
+			"neutralCount":   bson.M{"$sum": bson.D{{Key: "$cond", Value: []interface{}{bson.M{"$eq": []interface{}{bson.D{{Key: "$const", Value: "$faces.emotion"}}, bson.D{{Key: "$const", Value: "neutral"}}}}, bson.D{{Key: "$const", Value: 1}}, bson.D{{Key: "$const", Value: 0}}}}}},
+			"sadCount":       bson.M{"$sum": bson.D{{Key: "$cond", Value: []interface{}{bson.M{"$eq": []interface{}{bson.D{{Key: "$const", Value: "$faces.emotion"}}, bson.D{{Key: "$const", Value: "sad"}}}}, bson.D{{Key: "$const", Value: 1}}, bson.D{{Key: "$const", Value: 0}}}}}},
+			"avgFluctuation": bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.emotion_fluctuation"}}},
+		}}},
+	}
+
+	cursor, err := dao.Coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var result []domain.EmotionTimeSeriesPoint
+	if cursor.Next(ctx) {
+		var point domain.EmotionTimeSeriesPoint
+		if err := cursor.Decode(&point); err == nil {
+			result = append(result, point)
+		}
+	}
+
+	return result, nil
+}
+
 // buildTimeFilter 辅助函数：构建时间查询条件
 func buildTimeFilter(startDate, endDate string) bson.M {
 	timeFilter := bson.M{}
@@ -226,15 +306,15 @@ func (dao *AnalysisDAO) GetRankDao(ctx context.Context, req *domain.RankRequest)
 		{{"$match", filter}},
 		{{"$unwind", "$faces"}},
 		{{"$group", bson.M{
-			"_id":           groupID,
-			"className":     bson.M{"$first": "$className"},
-			"courseName":    bson.M{"$first": "$courseName"},
-			"avgFocusScore": bson.M{"$avg": "$faces.focus_score"},
-			"timestamp":     bson.M{"$first": "$timestamp"},
-			"resultUrl":     bson.M{"$first": "$result_url"},
+			"_id":           bson.D{{Key: "$const", Value: groupID}},
+			"className":     bson.M{"$first": bson.D{{Key: "$const", Value: "$className"}}},
+			"courseName":    bson.M{"$first": bson.D{{Key: "$const", Value: "$courseName"}}},
+			"avgFocusScore": bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.focus_score"}}},
+			"timestamp":     bson.M{"$first": bson.D{{Key: "$const", Value: "$timestamp"}}},
+			"resultUrl":     bson.M{"$first": bson.D{{Key: "$const", Value: "$result_url"}}},
 		}}},
 		{{"$addFields", bson.M{
-			"avgFocusScore": bson.M{"$round": []interface{}{"$avgFocusScore", 2}},
+			"avgFocusScore": bson.M{"$round": []interface{}{bson.D{{Key: "$const", Value: "$avgFocusScore"}}, bson.D{{Key: "$const", Value: 2}}}},
 		}}},
 		{{"$facet", bson.M{
 			"data": []bson.M{
@@ -290,22 +370,22 @@ func (dao *AnalysisDAO) GetRankDao(ctx context.Context, req *domain.RankRequest)
 func (dao *AnalysisDAO) InsertAvg(taskId string) error {
 	pipeline := mongo.Pipeline{
 		{{"$match", bson.M{
-			"Id":    taskId, // 注意：这里匹配的是 Id 字段，请确保数据库字段名一致
+			"Id":    bson.D{{Key: "$const", Value: taskId}},
 			"faces": bson.M{"$exists": true, "$ne": []interface{}{}},
 		}}},
 		{{"$unwind", "$faces"}},
 		{{"$group", bson.M{
-			"_id":           "$taskId",
-			"className":     bson.M{"$first": "$className"},
-			"courseName":    bson.M{"$first": "$courseName"},
-			"avgFocusScore": bson.M{"$avg": "$faces.focus_score"},
-			"timestamp":     bson.M{"$first": "$timestamp"},
-			"resultUrl":     bson.M{"$first": "$result_url"},
+			"_id":           bson.D{{Key: "$const", Value: "$taskId"}},
+			"className":     bson.M{"$first": bson.D{{Key: "$const", Value: "$className"}}},
+			"courseName":    bson.M{"$first": bson.D{{Key: "$const", Value: "$courseName"}}},
+			"avgFocusScore": bson.M{"$avg": bson.D{{Key: "$const", Value: "$faces.focus_score"}}},
+			"timestamp":     bson.M{"$first": bson.D{{Key: "$const", Value: "$timestamp"}}},
+			"resultUrl":     bson.M{"$first": bson.D{{Key: "$const", Value: "$result_url"}}},
 		}}},
 		{{"$merge", bson.M{
-			"into":           "analysis",
-			"whenMatched":    "merge",
-			"whenNotMatched": "discard",
+			"into":           bson.D{{Key: "$const", Value: "analysis"}},
+			"whenMatched":    bson.D{{Key: "$const", Value: "merge"}},
+			"whenNotMatched": bson.D{{Key: "$const", Value: "discard"}},
 		}}},
 	}
 
@@ -378,7 +458,7 @@ func (dao *AnalysisDAO) UpdateFileNameByTaskId(ctx context.Context, taskId, file
 
 	result, err := dao.UpdateOne(
 		ctx,
-		bson.M{"imagid": objectID},
+		bson.M{"imageid": objectID},
 		bson.M{"$set": bson.M{
 			"fileName": fileName,
 		}},

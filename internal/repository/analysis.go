@@ -70,7 +70,7 @@ func (r *AnalysisRepository) Create(ctx context.Context, analysis *domain.Analys
 
 // FindById 根据ID查找分析记录
 func (r *AnalysisRepository) FindById(ctx context.Context, id primitive.ObjectID) (*domain.Analysis, error) {
-	return r.analysisDAO.FindByImageId(ctx, id)
+	return r.analysisDAO.FindById(ctx, id)
 }
 
 // FindByTeacherId 根据教师ID查找分析记录
@@ -91,6 +91,10 @@ func (r *AnalysisRepository) CountByTeacherId(ctx context.Context) (int64, int64
 // GetLastAnalysisTime 获取最后分析时间
 func (r *AnalysisRepository) GetLastAnalysisTime(ctx context.Context, teacherId primitive.ObjectID) (*time.Time, error) {
 	return r.analysisDAO.GetLastAnalysisTime(ctx, teacherId)
+}
+
+func (r *AnalysisRepository) GetAnalysisDAO() *dao.AnalysisDAO {
+	return r.analysisDAO
 }
 
 // 获取班级分析列表

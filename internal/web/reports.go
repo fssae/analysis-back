@@ -65,7 +65,7 @@ func (h *TeacherHandler) GetReportList(c *gin.Context) {
 	}
 
 	// 获取分析记录作为报告列表
-	analyses, err := h.analysisService.GetHistory(c.Request.Context(), "video")
+	analyses, total, err := h.analysisService.GetHistory(c.Request.Context(), "video", 1, 100)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code": 500,
@@ -86,6 +86,9 @@ func (h *TeacherHandler) GetReportList(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"msg":  "success",
-		"data": reportList,
+		"data": gin.H{
+			"list":  reportList,
+			"total": total,
+		},
 	})
 }
