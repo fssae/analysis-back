@@ -208,14 +208,13 @@ func (s *AnalysisService) processImageAnalysis(ctx context.Context, analysis *do
 
 // GetHistory 获取分析历史
 func (s *AnalysisService) GetHistory(ctx context.Context, fileType string) ([]*domain.Analysis, error) {
-	// teacherId 暂时传空，后续应从 Context 获取或作为参数传入
 	analyses, err := s.analysisRepo.FindByTeacherId(ctx, primitive.NilObjectID, 20)
 	if err != nil {
 		return nil, err
 	}
 	var result []*domain.Analysis
 	for _, analysis := range analyses {
-		if analysis.AnalysisMode == fileType || (fileType == "image" && analysis.FileType == "image") {
+		if analysis.FileType == fileType {
 			result = append(result, analysis)
 		}
 	}

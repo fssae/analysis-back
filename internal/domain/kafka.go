@@ -8,6 +8,7 @@ type TeacherAnalysisRequest struct {
 	TaskId              string    `form:"taskId" json:"taskId" bson:"taskId"`
 	ConfidenceThreshold float64   `form:"confidenceThreshold" json:"confidenceThreshold" bson:"confidenceThreshold"`
 	AnalysisType        string    `form:"analysisType" json:"analysisType" bson:"analysisType"`
+	ConfigMode          string    `form:"configMode" json:"configMode" bson:"configMode"`
 	Url                 string    `form:"url" json:"url" bson:"url"`
 	ClassName           string    `form:"className" json:"className" bson:"className"`
 	CourseName          string    `form:"courseName" json:"courseName" bson:"courseName"`
