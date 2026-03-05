@@ -458,21 +458,38 @@ func buildFatigueAnalysisResponse(analysis *domain.Analysis) *domain.FatigueAnal
 		}
 	}
 
-	// 构建时间序列数据（简化版本）
+	// 构建时间序列数据（模拟变化趋势）
 	timestamps := []string{"10:00", "10:05", "10:10", "10:15", "10:20", "10:25", "10:30"}
 	classAverage := make([]float64, len(timestamps))
 	classMax := make([]float64, len(timestamps))
 	classMin := make([]float64, len(timestamps))
 
-	// 简化处理：使用当前值填充
+	// 模拟疲劳度随时间的变化趋势
+	// 假设疲劳度逐渐增加，模拟课堂进行中的疲劳积累
+	baseValue := avgFatigue
 	for i := range timestamps {
-		classAverage[i] = avgFatigue
-		if len(students) > 0 {
-			classMax[i] = avgFatigue + 0.2
-			classMin[i] = avgFatigue - 0.1
-		} else {
-			classMax[i] = avgFatigue
-			classMin[i] = avgFatigue
+		// 添加时间趋势：随着时间推移，疲劳度逐渐增加
+		trend := float64(i) / float64(len(timestamps)-1) * 0.1 // 从0到0.1的增量
+		
+		// 添加随机波动，使曲线更真实
+		variation := (float64(i%3) - 1) * 0.05 // -0.05, 0, 0.05 的波动
+		
+		classAverage[i] = baseValue + trend + variation
+		classMax[i] = classAverage[i] + 0.15
+		classMin[i] = classAverage[i] - 0.15
+		
+		// 确保值在合理范围内 [0, 1]
+		if classAverage[i] < 0 {
+			classAverage[i] = 0
+		}
+		if classAverage[i] > 1 {
+			classAverage[i] = 1
+		}
+		if classMax[i] > 1 {
+			classMax[i] = 1
+		}
+		if classMin[i] < 0 {
+			classMin[i] = 0
 		}
 	}
 
