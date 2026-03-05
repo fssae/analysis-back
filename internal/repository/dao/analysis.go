@@ -4,6 +4,7 @@ import (
 	"classroom-analysis/internal/domain"
 	"context"
 	"errors"
+	"math"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -601,8 +602,8 @@ func (dao *AnalysisDAO) getGlobalOverview(ctx context.Context) (*domain.GlobalOv
 		}
 		if err := cursor.Decode(&result); err == nil {
 			overview.TotalStudents = result.TotalStudents
-			overview.AverageFocusScore = result.AvgFocusScore
-			overview.AverageFatigueScore = result.AvgFatigueScore
+			overview.AverageFocusScore = math.Round(result.AvgFocusScore*100) / 100
+			overview.AverageFatigueScore = math.Round(result.AvgFatigueScore*100) / 100
 			overview.HighFatigueStudents = result.HighFatigueCount
 			overview.LowFocusStudents = result.LowFocusCount
 			overview.EmotionDistribution["happy"] = result.HappyCount
@@ -666,6 +667,9 @@ func (dao *AnalysisDAO) getClassStats(ctx context.Context) ([]domain.ClassStat, 
 	for cursor.Next(ctx) {
 		var stat domain.ClassStat
 		if err := cursor.Decode(&stat); err == nil {
+			// 保留2位小数
+			stat.AverageFocusScore = math.Round(stat.AverageFocusScore*100) / 100
+			stat.AverageFatigueScore = math.Round(stat.AverageFatigueScore*100) / 100
 			classStats = append(classStats, stat)
 		}
 	}
@@ -719,6 +723,9 @@ func (dao *AnalysisDAO) getCourseStats(ctx context.Context) ([]domain.CourseStat
 	for cursor.Next(ctx) {
 		var stat domain.CourseStat
 		if err := cursor.Decode(&stat); err == nil {
+			// 保留2位小数
+			stat.AverageFocusScore = math.Round(stat.AverageFocusScore*100) / 100
+			stat.AverageFatigueScore = math.Round(stat.AverageFatigueScore*100) / 100
 			courseStats = append(courseStats, stat)
 		}
 	}
@@ -780,8 +787,9 @@ func (dao *AnalysisDAO) getStudentGlobalStats(ctx context.Context) ([]domain.Stu
 			stat.ClassName = rawData.ClassName
 			stat.CourseName = rawData.CourseName
 			stat.AnalysisCount = rawData.AnalysisCount
-			stat.AverageFocusScore = rawData.AverageFocusScore
-			stat.AverageFatigueScore = rawData.AverageFatigueScore
+			// 保留2位小数
+			stat.AverageFocusScore = math.Round(rawData.AverageFocusScore*100) / 100
+			stat.AverageFatigueScore = math.Round(rawData.AverageFatigueScore*100) / 100
 			stat.LatestAnalysisTime = rawData.LatestAnalysisTime
 			// 计算平均情绪
 			stat.AverageEmotion = calculateAverageEmotion(rawData.Emotions)
@@ -887,7 +895,7 @@ func (dao *AnalysisDAO) getTrendData(ctx context.Context) ([]domain.EmotionTrend
 		}
 		if err := focusCursor.Decode(&rawData); err == nil {
 			point.Date = rawData.Date
-			point.AverageFocusScore = rawData.AvgFocusScore
+			point.AverageFocusScore = math.Round(rawData.AvgFocusScore*100) / 100
 			point.StudentCount = rawData.StudentCount
 			focusTrend = append(focusTrend, point)
 		}
@@ -926,7 +934,7 @@ func (dao *AnalysisDAO) getTrendData(ctx context.Context) ([]domain.EmotionTrend
 		}
 		if err := fatigueCursor.Decode(&rawData); err == nil {
 			point.Date = rawData.Date
-			point.AverageFatigueScore = rawData.AvgFatigueScore
+			point.AverageFatigueScore = math.Round(rawData.AvgFatigueScore*100) / 100
 			point.HighFatigueCount = rawData.HighFatigueCount
 			fatigueTrend = append(fatigueTrend, point)
 		}
