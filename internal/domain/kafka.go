@@ -3,18 +3,20 @@ package domain
 import "time"
 
 type TeacherAnalysisRequest struct {
-	ImageId             string    `form:"imageId" json:"imageId" bson:"imageId"`
-	VideoId             string    `form:"videoId" json:"videoId" bson:"videoId"`
-	TaskId              string    `form:"taskId" json:"taskId" bson:"taskId"`
-	ConfidenceThreshold float64   `form:"confidenceThreshold" json:"confidenceThreshold" bson:"confidenceThreshold"`
-	AnalysisType        string    `form:"analysisType" json:"analysisType" bson:"analysisType"`
-	ConfigMode          string    `form:"configMode" json:"configMode" bson:"configMode"`
-	Url                 string    `form:"url" json:"url" bson:"url"`
-	ClassName           string    `form:"className" json:"className" bson:"className"`
-	CourseName          string    `form:"courseName" json:"courseName" bson:"courseName"`
-	Description         string    `form:"description" json:"description" bson:"description"`
-	FileName            string    `form:"fileName" json:"fileName" bson:"fileName"`
-	Timestamp           time.Time `form:"timestamp" json:"timestamp" bson:"timestamp"`
+	ImageId                  string    `form:"imageId" json:"imageId" bson:"imageId"`
+	VideoId                  string    `form:"videoId" json:"videoId" bson:"videoId"`
+	TaskId                   string    `form:"taskId" json:"taskId" bson:"taskId"`
+	ConfidenceThreshold      float64   `form:"confidenceThreshold" json:"confidenceThreshold" bson:"confidenceThreshold"`
+	AnalysisType             string    `form:"analysisType" json:"analysisType" bson:"analysisType"`
+	ConfigMode               string    `form:"configMode" json:"configMode" bson:"configMode"`
+	EnableFatigue            *bool     `form:"enableFatigue" json:"enableFatigue" bson:"enableFatigue"`
+	EnableEmotionFluctuation *bool     `form:"enableEmotionFluctuation" json:"enableEmotionFluctuation" bson:"enableEmotionFluctuation"`
+	Url                      string    `form:"url" json:"url" bson:"url"`
+	ClassName                string    `form:"className" json:"className" bson:"className"`
+	CourseName               string    `form:"courseName" json:"courseName" bson:"courseName"`
+	Description              string    `form:"description" json:"description" bson:"description"`
+	FileName                 string    `form:"fileName" json:"fileName" bson:"fileName"`
+	Timestamp                time.Time `form:"timestamp" json:"timestamp" bson:"timestamp"`
 }
 
 type KafkaMessage struct {

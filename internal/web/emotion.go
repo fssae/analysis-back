@@ -123,9 +123,15 @@ func buildEmotionAnalysisResponse(analysis *domain.Analysis) *domain.EmotionAnal
 	students := make([]domain.StudentEmotion, 0, totalStudents)
 
 	for _, face := range analysis.Faces {
+		// 获取当前情绪：优先使用 emotion 字段，如果没有则从 recent_emotions 取最后一个
+		currentEmotion := face.Emotion
+		if currentEmotion == "" && len(face.RecentEmotions) > 0 {
+			currentEmotion = face.RecentEmotions[len(face.RecentEmotions)-1]
+		}
+
 		// 统计情绪
-		if face.Emotion != "" && emotionLabels[face.Emotion] {
-			emotionCount[face.Emotion]++
+		if currentEmotion != "" && emotionLabels[currentEmotion] {
+			emotionCount[currentEmotion]++
 		}
 
 		// 累计情绪波动值
@@ -137,7 +143,7 @@ func buildEmotionAnalysisResponse(analysis *domain.Analysis) *domain.EmotionAnal
 		// 构建学生情绪信息
 		studentEmotion := domain.StudentEmotion{
 			FaceIndex:          face.FaceIndex,
-			CurrentEmotion:     face.Emotion,
+			CurrentEmotion:     currentEmotion,
 			EmotionFluctuation: face.EmotionFluctuation,
 			RecentEmotions:     face.RecentEmotions,
 			EmotionStability:   stability,
@@ -470,14 +476,14 @@ func buildFatigueAnalysisResponse(analysis *domain.Analysis) *domain.FatigueAnal
 	for i := range timestamps {
 		// 添加时间趋势：随着时间推移，疲劳度逐渐增加
 		trend := float64(i) / float64(len(timestamps)-1) * 0.1 // 从0到0.1的增量
-		
+
 		// 添加随机波动，使曲线更真实
 		variation := (float64(i%3) - 1) * 0.05 // -0.05, 0, 0.05 的波动
-		
+
 		classAverage[i] = baseValue + trend + variation
 		classMax[i] = classAverage[i] + 0.15
 		classMin[i] = classAverage[i] - 0.15
-		
+
 		// 确保值在合理范围内 [0, 1]
 		if classAverage[i] < 0 {
 			classAverage[i] = 0
