@@ -83,6 +83,11 @@ func (r *AnalysisRepository) Update(ctx context.Context, analysis *domain.Analys
 	return r.analysisDAO.Update(ctx, analysis)
 }
 
+// UpdateAnalysisStatus 更新分析记录状态
+func (r *AnalysisRepository) UpdateAnalysisStatus(ctx context.Context, imageId primitive.ObjectID, status string) error {
+	return r.analysisDAO.UpdateAnalysisStatus(ctx, imageId, status)
+}
+
 // CountByTeacherId 统计教师的分析数量
 func (r *AnalysisRepository) CountByTeacherId(ctx context.Context) (int64, int64, int64, int64, error) {
 	return r.analysisDAO.CountByTeacherId(ctx)

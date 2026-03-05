@@ -21,6 +21,7 @@ type Analysis struct {
 	FileName     string             `json:"fileName" bson:"filename"`
 	AnalysisName string             `json:"analysisName" bson:"analysisName"`
 	FileType     string             `json:"fileType" bson:"filetype"`
+	Status       string             `json:"status" bson:"status"` // processing, completed, failed
 }
 type AnalysisResult struct {
 	AvgFocus           float64 `json:"avgFocus"`

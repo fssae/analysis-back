@@ -427,6 +427,7 @@ func (h *TeacherHandler) updateTaskStatus(imageId, status, resultUrl, errorMsg s
 		oid = primitive.NewObjectID()
 	}
 
+	// 更新状态集合
 	updateStatus := domain.UpdateStatus{
 		TaskId:              imageId,
 		ImageId:             oid,
@@ -444,6 +445,16 @@ func (h *TeacherHandler) updateTaskStatus(imageId, status, resultUrl, errorMsg s
 			zap.Error(err))
 		return
 	}
+
+	// 同时更新Analysis记录的状态
+	if err := h.analysisService.UpdateAnalysisStatus(context.Background(), oid, status); err != nil {
+		h.logger.Error("更新Analysis记录状态失败",
+			zap.String("imageId", imageId),
+			zap.String("status", status),
+			zap.Error(err))
+		// 不返回，因为状态集合已经更新成功
+	}
+
 	h.logger.Info("任务状态更新成功",
 		zap.String("imageId", imageId),
 		zap.String("status", status))

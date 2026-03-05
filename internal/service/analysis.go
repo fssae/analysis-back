@@ -60,6 +60,11 @@ func (s *AnalysisService) UpdateStatus(update *domain.UpdateStatus) error {
 	return s.analysisRepo.UpdateStatus(update)
 }
 
+// UpdateAnalysisStatus 更新分析记录状态
+func (s *AnalysisService) UpdateAnalysisStatus(ctx context.Context, imageId primitive.ObjectID, status string) error {
+	return s.analysisRepo.UpdateAnalysisStatus(ctx, imageId, status)
+}
+
 func (s *AnalysisService) GetStatus(ctx context.Context, taskId string) ([]*domain.UpdateStatus, error) {
 	return s.analysisTaskRepo.GetStatus(ctx, taskId)
 }

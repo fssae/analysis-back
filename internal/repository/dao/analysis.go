@@ -71,6 +71,12 @@ func (dao *AnalysisDAO) Update(ctx context.Context, analysis *domain.Analysis) e
 	return err
 }
 
+// UpdateAnalysisStatus 更新分析记录状态
+func (dao *AnalysisDAO) UpdateAnalysisStatus(ctx context.Context, imageId primitive.ObjectID, status string) error {
+	_, err := dao.UpdateOne(ctx, bson.M{"imageid": imageId}, bson.M{"$set": bson.M{"status": status}})
+	return err
+}
+
 // CountByTeacherId 统计逻辑 (优化为使用聚合查询)
 func (dao *AnalysisDAO) CountByTeacherId(ctx context.Context) (int64, int64, int64, int64, error) {
 	// 1. 统计图片
