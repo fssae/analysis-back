@@ -92,12 +92,12 @@ func (s *AnalysisService) AnalyzeVideo(ctx context.Context, fileName, fileType s
 	if err != nil {
 		return nil, err
 	}
-	go s.processVideoAnalysis(ctx, analysis)
+	// 注释掉模拟数据生成，让 Python Kafka worker 负责生成真实数据
+	// go s.processVideoAnalysis(ctx, analysis)
 	return analysis, nil
 }
 
 func (s *AnalysisService) processVideoAnalysis(ctx context.Context, analysis *domain.Analysis) {
-	time.Sleep(5 * time.Second)
 	var focusTrend []domain.FocusPoint
 	for i := 0; i < 10; i++ {
 		focusTrend = append(focusTrend, domain.FocusPoint{
@@ -105,14 +105,26 @@ func (s *AnalysisService) processVideoAnalysis(ctx context.Context, analysis *do
 			Focus: 70 + rand.Float64()*20,
 		})
 	}
-	// 生成人脸分析数据
+	// 生成人脸分析数据（包含情绪数据）
+	emotions := []string{"happy", "neutral", "sad", "angry", "surprise", "fear", "disgust"}
 	var faces []domain.FaceAnalysis
 	for i := 0; i < 5; i++ {
-		faces = append(faces, domain.FaceAnalysis{
-			FaceIndex:  i + 1,
-			FocusScore: 70 + rand.Float64()*20,
-			Confidence: 0.9 + rand.Float64()*0.1,
-		})
+		face := domain.FaceAnalysis{
+			FaceIndex:    i + 1,
+			FocusScore:   70 + rand.Float64()*20,
+			Confidence:   0.9 + rand.Float64()*0.1,
+			FatigueScore: 0.3 + rand.Float64()*0.3,
+		}
+
+		face.Emotion = emotions[i%len(emotions)]
+		face.EmotionFluctuation = rand.Float64()
+		face.RecentEmotions = []string{
+			emotions[(i+6)%len(emotions)],
+			emotions[(i+5)%len(emotions)],
+			face.Emotion,
+		}
+
+		faces = append(faces, face)
 	}
 	analysis.Faces = faces
 	s.analysisRepo.Update(ctx, analysis)
@@ -189,7 +201,8 @@ func (s *AnalysisService) AnalyzeImage(ctx context.Context, fileName, fileType s
 	if err != nil {
 		return nil, err
 	}
-	go s.processImageAnalysis(ctx, analysis)
+	// 注释掉模拟数据生成，让 Python Kafka worker 负责生成真实数据
+	// go s.processImageAnalysis(ctx, analysis)
 	return analysis, nil
 }
 
