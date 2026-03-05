@@ -74,3 +74,13 @@ func (r *TeacherRepository) FindById(ctx context.Context, id primitive.ObjectID)
 func (r *TeacherRepository) Update(ctx context.Context, teacher *domain.Teacher) error {
 	return r.teacherDAO.Update(ctx, teacher)
 }
+
+// GetSettings 获取教师设置
+func (r *TeacherRepository) GetSettings(ctx context.Context, teacherId string) (*domain.SettingsData, error) {
+	return r.teacherDAO.GetSettings(ctx, teacherId)
+}
+
+// SaveSettings 保存教师设置
+func (r *TeacherRepository) SaveSettings(ctx context.Context, teacherId string, settings interface{}) error {
+	return r.teacherDAO.SaveSettings(ctx, teacherId, settings)
+}

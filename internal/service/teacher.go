@@ -258,17 +258,48 @@ func (s *TeacherService) GetTeacherById(ctx context.Context, teacherId primitive
 	return s.teacherRepo.FindById(ctx, teacherId)
 }
 
+// GetSettings 获取教师设置
+func (s *TeacherService) GetSettings(ctx context.Context, teacherId string) (*domain.SettingsData, error) {
+	// 从数据库获取设置，如果不存在则返回默认值
+	settings, err := s.teacherRepo.GetSettings(ctx, teacherId)
+	if err != nil {
+		// 返回默认设置
+		return &domain.SettingsData{
+			UISettings: domain.UISettings{
+				Theme:            "light",
+				SidebarCollapsed: false,
+				EnableAnimation:  true,
+			},
+			AnalysisSettings: domain.AnalysisSettings{
+				DefaultCourse:    "",
+				DefaultClass:     "",
+				FatigueThreshold: 70,
+				FocusThreshold:   60,
+			},
+			NotificationSettings: domain.NotificationSettings{
+				Enabled:           true,
+				FatigueAlert:      true,
+				FocusAlert:        true,
+				EmailNotification: false,
+			},
+		}, nil
+	}
+	return settings, nil
+}
+
 // UpdateSettings 更新教师设置
-func (s *TeacherService) UpdateSettings(ctx context.Context, teacherId primitive.ObjectID, email string) error {
+func (s *TeacherService) UpdateSettings(ctx context.Context, teacherId string, req interface{}) error {
+	return s.teacherRepo.SaveSettings(ctx, teacherId, req)
+}
+
+// UpdateTeacherEmail 更新教师邮箱
+func (s *TeacherService) UpdateTeacherEmail(ctx context.Context, teacherId primitive.ObjectID, email string) error {
 	teacher, err := s.teacherRepo.FindById(ctx, teacherId)
 	if err != nil {
 		return err
 	}
 
 	teacher.Email = email
-	// 注意：这里简化处理，实际应该有一个单独的settings表
-	// 或者扩展Teacher结构体来包含notification字段
-
 	return s.teacherRepo.Update(ctx, teacher)
 }
 

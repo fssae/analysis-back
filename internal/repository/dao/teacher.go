@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type TeacherDAO struct {
@@ -59,6 +60,39 @@ func (dao *TeacherDAO) Update(ctx context.Context, teacher *domain.Teacher) erro
 		ctx,
 		bson.M{"_id": teacher.Id},
 		bson.M{"$set": teacher},
+	)
+	return err
+}
+
+// GetSettings 获取教师设置
+func (dao *TeacherDAO) GetSettings(ctx context.Context, teacherId string) (*domain.SettingsData, error) {
+	settingsColl := dao.collection.Database().Collection("teacher_settings")
+	var settings domain.SettingsData
+	err := settingsColl.FindOne(ctx, bson.M{"teacherId": teacherId}).Decode(&settings)
+	if err != nil {
+		return nil, err
+	}
+	return &settings, nil
+}
+
+// SaveSettings 保存教师设置
+func (dao *TeacherDAO) SaveSettings(ctx context.Context, teacherId string, settings interface{}) error {
+	settingsColl := dao.collection.Database().Collection("teacher_settings")
+
+	_, err := settingsColl.UpdateOne(
+		ctx,
+		bson.M{"teacherId": teacherId},
+		bson.M{
+			"$set": bson.M{
+				"teacherId": teacherId,
+				"settings":  settings,
+				"updatedAt": time.Now(),
+			},
+			"$setOnInsert": bson.M{
+				"createdAt": time.Now(),
+			},
+		},
+		options.Update().SetUpsert(true),
 	)
 	return err
 }

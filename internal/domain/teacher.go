@@ -46,3 +46,36 @@ type TeacherSettings struct {
 	CreatedAt    time.Time          `json:"createdAt" bson:"createdAt"`
 	UpdatedAt    time.Time          `json:"updatedAt" bson:"updatedAt"`
 }
+
+// UISettings 界面设置
+type UISettings struct {
+	Theme            string `json:"theme" bson:"theme"`
+	SidebarCollapsed bool   `json:"sidebarCollapsed" bson:"sidebarCollapsed"`
+	EnableAnimation  bool   `json:"enableAnimation" bson:"enableAnimation"`
+}
+
+// AnalysisSettings 分析设置
+type AnalysisSettings struct {
+	DefaultCourse    string `json:"defaultCourse" bson:"defaultCourse"`
+	DefaultClass     string `json:"defaultClass" bson:"defaultClass"`
+	FatigueThreshold int    `json:"fatigueThreshold" bson:"fatigueThreshold"`
+	FocusThreshold   int    `json:"focusThreshold" bson:"focusThreshold"`
+}
+
+// NotificationSettings 通知设置
+type NotificationSettings struct {
+	Enabled           bool `json:"enabled" bson:"enabled"`
+	FatigueAlert      bool `json:"fatigueAlert" bson:"fatigueAlert"`
+	FocusAlert        bool `json:"focusAlert" bson:"focusAlert"`
+	EmailNotification bool `json:"emailNotification" bson:"emailNotification"`
+}
+
+// SettingsData 设置数据结构
+type SettingsData struct {
+	TeacherId            string               `bson:"teacherId" json:"teacherId"`
+	UISettings           UISettings           `bson:"uiSettings" json:"uiSettings"`
+	AnalysisSettings     AnalysisSettings     `bson:"analysisSettings" json:"analysisSettings"`
+	NotificationSettings NotificationSettings `bson:"notificationSettings" json:"notificationSettings"`
+	CreatedAt            time.Time            `bson:"createdAt" json:"createdAt"`
+	UpdatedAt            time.Time            `bson:"updatedAt" json:"updatedAt"`
+}
