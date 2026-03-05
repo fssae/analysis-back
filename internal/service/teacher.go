@@ -120,87 +120,65 @@ func (s *TeacherService) GetVideoAnalysisDetail(ctx context.Context, id string) 
 		return nil, errors.New("analysis ID is required")
 	}
 
-	// 将字符串ID转换为ObjectID
-	analysisId, err := primitive.ObjectIDFromHex(id)
+	// 首先通过 imageId 获取 analysis 记录
+	analysisResult, err := s.analysisRepo.FindByImageIdString(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("invalid analysis ID format: %v", err)
+		return nil, fmt.Errorf("analysis not found for imageId: %s", id)
 	}
 
-	// 并行获取所需数据以提高性能
+	// 获取到 analysis 的 _id，用于查询关联表
+	analysisId := analysisResult.Id
+
+	// 并行获取视频分析详情和学生专注度数据以提高性能
 	type result struct {
-		analysis       *domain.Analysis
 		videoAnalysis  *domain.VideoAnalysis
 		studentFocuses []*domain.StudentFocus // 修改为指针类型
 		err            error
 		index          int
 	}
 
-	// 创建带缓冲区的通道，用于接收三个goroutine的结果
-	ch := make(chan result, 3)
-
-	// 获取基础分析信息
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				ch <- result{err: fmt.Errorf("panic occurred while getting analysis: %v", r), index: 0}
-			}
-		}()
-
-		analysis, err := s.analysisRepo.FindById(ctx, analysisId)
-		ch <- result{analysis: analysis, err: err, index: 0}
-	}()
+	// 创建带缓冲区的通道，用于接收两个goroutine的结果
+	ch := make(chan result, 2)
 
 	// 获取视频分析详情
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				ch <- result{err: fmt.Errorf("panic occurred while getting video analysis: %v", r), index: 1}
+				ch <- result{err: fmt.Errorf("panic occurred while getting video analysis: %v", r), index: 0}
 			}
 		}()
 
 		videoAnalysis, err := s.videoAnalysisRepo.FindByAnalysisId(ctx, analysisId)
-		ch <- result{videoAnalysis: videoAnalysis, err: err, index: 1}
+		ch <- result{videoAnalysis: videoAnalysis, err: err, index: 0}
 	}()
 
 	// 获取学生专注度数据
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				ch <- result{err: fmt.Errorf("panic occurred while getting student focuses: %v", r), index: 2}
+				ch <- result{err: fmt.Errorf("panic occurred while getting student focuses: %v", r), index: 1}
 			}
 		}()
 
 		studentFocuses, err := s.studentFocusRepo.FindByAnalysisId(ctx, analysisId)
-		ch <- result{studentFocuses: studentFocuses, err: err, index: 2}
+		ch <- result{studentFocuses: studentFocuses, err: err, index: 1}
 	}()
 
 	// 收集结果
-	var analysisResult *domain.Analysis
 	var videoAnalysis *domain.VideoAnalysis
 	var studentFocusPtrs []*domain.StudentFocus // 修改变量名为更清晰的名称
 
 	var resultsReceived int
 	var criticalErr error // 关键错误（非"未找到"错误）
 
-	// 等待所有goroutine完成
-	for resultsReceived < 3 {
+	// 等待所有goroutine完成（现在只有2个）
+	for resultsReceived < 2 {
 		select {
 		case res := <-ch:
 			resultsReceived++
 
 			switch res.index {
-			case 0: // analysis
-				if res.err != nil {
-					if res.err == mongo.ErrNoDocuments {
-						// 对于分析不存在的情况，我们直接返回错误，因为这是必须的
-						criticalErr = fmt.Errorf("analysis not found for ID: %s", id)
-					} else {
-						criticalErr = fmt.Errorf("failed to get analysis: %v", res.err)
-					}
-				} else {
-					analysisResult = res.analysis
-				}
-			case 1: // videoAnalysis
+			case 0: // videoAnalysis
 				if res.err != nil {
 					if res.err == mongo.ErrNoDocuments {
 						// 对于视频分析不存在的情况，我们返回错误，因为这是必须的
@@ -211,7 +189,7 @@ func (s *TeacherService) GetVideoAnalysisDetail(ctx context.Context, id string) 
 				} else {
 					videoAnalysis = res.videoAnalysis
 				}
-			case 2: // studentFocuses
+			case 1: // studentFocuses
 				if res.err != nil && res.err != mongo.ErrNoDocuments {
 					// 对于学生专注度数据，如果只是没找到文档，这是正常的（可能没有学生数据）
 					// 只有其他错误才视为关键错误
@@ -229,11 +207,6 @@ func (s *TeacherService) GetVideoAnalysisDetail(ctx context.Context, id string) 
 	// 检查是否存在关键错误
 	if criticalErr != nil {
 		return nil, criticalErr
-	}
-
-	// 检查分析结果是否存在（这是必须的）
-	if analysisResult == nil {
-		return nil, fmt.Errorf("analysis not found for ID: %s", id)
 	}
 
 	// 检查视频分析是否存在（这也是必须的，因为视频分析详情依赖于它）
