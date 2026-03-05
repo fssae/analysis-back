@@ -44,7 +44,8 @@ func (e *EmailRepository) GetUrlsByTeacherId(c context.Context, teacherId primit
 			continue
 		}
 
-		analysis, err := e.analysisDao.FindById(c, taskObjectId)
+		// 使用 FindByImageId 查询，因为 taskId 实际上是 imageid
+		analysis, err := e.analysisDao.FindByImageId(c, taskObjectId)
 		if err != nil || analysis == nil {
 			continue
 		}

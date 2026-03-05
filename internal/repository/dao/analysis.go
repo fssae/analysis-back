@@ -60,8 +60,8 @@ func (dao *AnalysisDAO) FindById(ctx context.Context, id primitive.ObjectID) (*d
 
 // FindByImageId 根据 ImageID 查找
 func (dao *AnalysisDAO) FindByImageId(ctx context.Context, imageId primitive.ObjectID) (*domain.Analysis, error) {
-	// 根据 imageid 字段查找，保持原业务逻辑
-	return dao.FindById(ctx, imageId) // 复用 FindById 方法
+	// 根据 imageid 字段查找
+	return dao.BaseDAO.FindOne(ctx, bson.M{"imageid": imageId})
 }
 
 // Update 更新分析记录
