@@ -178,11 +178,31 @@ func (h *TeacherHandler) GetImageHistory(c *gin.Context) {
 		},
 	})
 }
-func (h *TeacherHandler) GetVideoHistory(c *gin.Context) {
+func (h *TeacherHandler) GetHistory(c *gin.Context) {
+	// 通过 type 参数区分图片和视频历史
+	analysisType := c.DefaultQuery("type", "video") // 默认返回视频历史
+	
+	page := c.DefaultQuery("page", "1")
+	pageSize := c.DefaultQuery("pageSize", "20")
+
+	pageInt, _ := strconv.Atoi(page)
+	pageSizeInt, _ := strconv.Atoi(pageSize)
+
+	history, total, err := h.analysisService.GetHistory(c.Request.Context(), analysisType, pageInt, pageSizeInt)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code": 500,
+			"msg":  "获取历史记录失败",
+		})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"msg":  "success",
-		"data": "history",
+		"data": gin.H{
+			"list":  history,
+			"total": total,
+		},
 	})
 }
 
