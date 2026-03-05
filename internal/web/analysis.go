@@ -181,7 +181,7 @@ func (h *TeacherHandler) GetImageHistory(c *gin.Context) {
 func (h *TeacherHandler) GetHistory(c *gin.Context) {
 	// 通过 type 参数区分图片和视频历史
 	analysisType := c.DefaultQuery("type", "video") // 默认返回视频历史
-	
+
 	page := c.DefaultQuery("page", "1")
 	pageSize := c.DefaultQuery("pageSize", "20")
 
@@ -330,7 +330,8 @@ func (h *TeacherHandler) performAnalysisAsync(c context.Context, req domain.Teac
 		zap.String("courseName", req.CourseName))
 	wsManager := GetAnalysisWSManager()
 	teacherId := claims.Id
-	wsId := claims.TeacherId
+	// 使用 imageId 作为 WebSocket 任务标识，与前端保持一致
+	wsId := imageId
 
 	if h.kafkaWriter == nil {
 		err := fmt.Errorf("kafkaWriter未初始化")
@@ -482,14 +483,22 @@ func (h *TeacherHandler) GetStatus(c *gin.Context) {
 // HandleAnalysisWebSocket 处理分析任务的WebSocket连接
 func (h *TeacherHandler) HandleAnalysisWebSocket(c *gin.Context) {
 	wsManager := GetAnalysisWSManager()
-	claims, err := util.GetClaims(c)
-	if err != nil {
+
+	// 从查询参数中获取 imageId（前端使用 imageId 作为任务标识）
+	imageId := c.Query("imageId")
+	if imageId == "" {
+		// 兼容旧版使用 taskId 的情况
+		imageId = c.Query("taskId")
+	}
+
+	if imageId == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code": 400,
-			"msg":  "id 解析错误",
+			"msg":  "缺少 imageId 或 taskId 参数",
 		})
 		return
 	}
-	//通过token获取教师id
-	wsManager.HandleConnection(claims.TeacherId, c.Writer, c.Request)
+
+	// 使用 imageId 作为任务标识注册 WebSocket 连接
+	wsManager.HandleConnection(imageId, c.Writer, c.Request)
 }
