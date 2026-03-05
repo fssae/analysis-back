@@ -222,14 +222,24 @@ func (s *AnalysisService) processImageAnalysis(ctx context.Context, analysis *do
 }
 
 // GetHistory 获取分析历史（支持分页）
+// fileType 为空字符串时返回全部记录
 func (s *AnalysisService) GetHistory(ctx context.Context, fileType string, page, pageSize int) ([]*domain.Analysis, int64, error) {
 	// 计算跳过数量
 	skip := int64((page - 1) * pageSize)
 	limit := int64(pageSize)
 
+	// 构建查询条件
+	var matchStage bson.M
+	if fileType == "" {
+		// 返回全部记录
+		matchStage = bson.M{}
+	} else {
+		matchStage = bson.M{"filetype": fileType}
+	}
+
 	// 使用聚合查询获取指定类型的分析记录
 	pipeline := mongo.Pipeline{
-		{{"$match", bson.M{"filetype": fileType}}},
+		{{"$match", matchStage}},
 		{{"$sort", bson.D{{Key: "timestamp", Value: -1}}}},
 		{{"$skip", skip}},
 		{{"$limit", limit}},
@@ -247,7 +257,7 @@ func (s *AnalysisService) GetHistory(ctx context.Context, fileType string, page,
 	}
 
 	// 获取总数
-	total, err := s.analysisRepo.GetAnalysisDAO().Count(ctx, bson.M{"filetype": fileType})
+	total, err := s.analysisRepo.GetAnalysisDAO().Count(ctx, matchStage)
 	if err != nil {
 		return nil, 0, err
 	}

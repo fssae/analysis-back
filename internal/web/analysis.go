@@ -180,7 +180,8 @@ func (h *TeacherHandler) GetImageHistory(c *gin.Context) {
 }
 func (h *TeacherHandler) GetHistory(c *gin.Context) {
 	// 通过 type 参数区分图片和视频历史
-	analysisType := c.DefaultQuery("type", "video") // 默认返回视频历史
+	// type 为空字符串时返回全部记录
+	analysisType := c.Query("type")
 
 	page := c.DefaultQuery("page", "1")
 	pageSize := c.DefaultQuery("pageSize", "20")
