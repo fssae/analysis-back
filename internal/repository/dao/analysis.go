@@ -473,3 +473,481 @@ func (dao *AnalysisDAO) UpdateFileNameByTaskId(ctx context.Context, taskId, file
 
 	return nil
 }
+
+// ========== 全局可视化分析相关方法 ==========
+
+// GetGlobalAnalysisData 获取全局分析数据
+func (dao *AnalysisDAO) GetGlobalAnalysisData(ctx context.Context) (*domain.GlobalAnalysisResponse, error) {
+	response := &domain.GlobalAnalysisResponse{
+		Overview: domain.GlobalOverview{
+			EmotionDistribution: make(map[string]int),
+		},
+		ClassStats:   make([]domain.ClassStat, 0),
+		CourseStats:  make([]domain.CourseStat, 0),
+		StudentStats: make([]domain.StudentGlobalStat, 0),
+		EmotionTrend: make([]domain.EmotionTrendPoint, 0),
+		FocusTrend:   make([]domain.FocusTrendPoint, 0),
+		FatigueTrend: make([]domain.FatigueTrendPoint, 0),
+	}
+
+	// 1. 获取全局概览统计
+	overview, err := dao.getGlobalOverview(ctx)
+	if err != nil {
+		return nil, err
+	}
+	response.Overview = *overview
+
+	// 2. 获取班级统计
+	classStats, err := dao.getClassStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	response.ClassStats = classStats
+
+	// 3. 获取课程统计
+	courseStats, err := dao.getCourseStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	response.CourseStats = courseStats
+
+	// 4. 获取学生统计
+	studentStats, err := dao.getStudentGlobalStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	response.StudentStats = studentStats
+
+	// 5. 获取趋势数据
+	emotionTrend, focusTrend, fatigueTrend, err := dao.getTrendData(ctx)
+	if err != nil {
+		return nil, err
+	}
+	response.EmotionTrend = emotionTrend
+	response.FocusTrend = focusTrend
+	response.FatigueTrend = fatigueTrend
+
+	return response, nil
+}
+
+// getGlobalOverview 获取全局概览统计
+func (dao *AnalysisDAO) getGlobalOverview(ctx context.Context) (*domain.GlobalOverview, error) {
+	overview := &domain.GlobalOverview{
+		EmotionDistribution: make(map[string]int),
+	}
+
+	// 统计总分析数
+	totalCount, err := dao.Count(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	overview.TotalAnalysis = totalCount
+
+	// 统计视频数
+	videoCount, err := dao.Count(ctx, bson.M{"filetype": "video"})
+	if err != nil {
+		return nil, err
+	}
+	overview.TotalVideos = videoCount
+	overview.TotalImages = totalCount - videoCount
+
+	// 聚合统计学生数、平均专注度、平均疲劳度、情绪分布
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.M{"faces": bson.M{"$exists": true, "$ne": []interface{}{}}}}},
+		{{"$unwind", "$faces"}},
+		{{"$group", bson.M{
+			"_id":              nil,
+			"totalStudents":    bson.M{"$sum": 1},
+			"avgFocusScore":    bson.M{"$avg": "$faces.focus_score"},
+			"avgFatigueScore":  bson.M{"$avg": "$faces.fatigue_score"},
+			"highFatigueCount": bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$gte": []interface{}{"$faces.fatigue_score", 0.7}}, 1, 0}}},
+			"lowFocusCount":    bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$lt": []interface{}{"$faces.focus_score", 0.5}}, 1, 0}}},
+			"happyCount":       bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "happy"}}, 1, 0}}},
+			"neutralCount":     bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "neutral"}}, 1, 0}}},
+			"sadCount":         bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "sad"}}, 1, 0}}},
+			"angryCount":       bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "angry"}}, 1, 0}}},
+			"surpriseCount":    bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "surprise"}}, 1, 0}}},
+			"fearCount":        bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "fear"}}, 1, 0}}},
+			"disgustCount":     bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "disgust"}}, 1, 0}}},
+		}}},
+	}
+
+	cursor, err := dao.Coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	if cursor.Next(ctx) {
+		var result struct {
+			TotalStudents    int64   `bson:"totalStudents"`
+			AvgFocusScore    float64 `bson:"avgFocusScore"`
+			AvgFatigueScore  float64 `bson:"avgFatigueScore"`
+			HighFatigueCount int64   `bson:"highFatigueCount"`
+			LowFocusCount    int64   `bson:"lowFocusCount"`
+			HappyCount       int     `bson:"happyCount"`
+			NeutralCount     int     `bson:"neutralCount"`
+			SadCount         int     `bson:"sadCount"`
+			AngryCount       int     `bson:"angryCount"`
+			SurpriseCount    int     `bson:"surpriseCount"`
+			FearCount        int     `bson:"fearCount"`
+			DisgustCount     int     `bson:"disgustCount"`
+		}
+		if err := cursor.Decode(&result); err == nil {
+			overview.TotalStudents = result.TotalStudents
+			overview.AverageFocusScore = result.AvgFocusScore
+			overview.AverageFatigueScore = result.AvgFatigueScore
+			overview.HighFatigueStudents = result.HighFatigueCount
+			overview.LowFocusStudents = result.LowFocusCount
+			overview.EmotionDistribution["happy"] = result.HappyCount
+			overview.EmotionDistribution["neutral"] = result.NeutralCount
+			overview.EmotionDistribution["sad"] = result.SadCount
+			overview.EmotionDistribution["angry"] = result.AngryCount
+			overview.EmotionDistribution["surprise"] = result.SurpriseCount
+			overview.EmotionDistribution["fear"] = result.FearCount
+			overview.EmotionDistribution["disgust"] = result.DisgustCount
+		}
+	}
+
+	return overview, nil
+}
+
+// getClassStats 获取班级统计
+func (dao *AnalysisDAO) getClassStats(ctx context.Context) ([]domain.ClassStat, error) {
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.M{
+			"className": bson.M{"$exists": true, "$ne": ""},
+			"faces":     bson.M{"$exists": true, "$ne": []interface{}{}},
+		}}},
+		{{"$unwind", "$faces"}},
+		{{"$group", bson.M{
+			"_id":             "$className",
+			"studentCount":    bson.M{"$addToSet": "$faces.face_index"},
+			"analysisCount":   bson.M{"$sum": 1},
+			"avgFocusScore":   bson.M{"$avg": "$faces.focus_score"},
+			"avgFatigueScore": bson.M{"$avg": "$faces.fatigue_score"},
+			"happyCount":      bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "happy"}}, 1, 0}}},
+			"neutralCount":    bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "neutral"}}, 1, 0}}},
+			"sadCount":        bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "sad"}}, 1, 0}}},
+			"angryCount":      bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "angry"}}, 1, 0}}},
+			"surpriseCount":   bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "surprise"}}, 1, 0}}},
+			"courseList":      bson.M{"$addToSet": "$courseName"},
+		}}},
+		{{"$project", bson.M{
+			"className":           "$_id",
+			"studentCount":        bson.M{"$size": "$studentCount"},
+			"analysisCount":       1,
+			"averageFocusScore":   "$avgFocusScore",
+			"averageFatigueScore": "$avgFatigueScore",
+			"emotionDistribution": bson.M{
+				"happy":    "$happyCount",
+				"neutral":  "$neutralCount",
+				"sad":      "$sadCount",
+				"angry":    "$angryCount",
+				"surprise": "$surpriseCount",
+			},
+			"courseList": 1,
+		}}},
+	}
+
+	cursor, err := dao.Coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var classStats []domain.ClassStat
+	for cursor.Next(ctx) {
+		var stat domain.ClassStat
+		if err := cursor.Decode(&stat); err == nil {
+			classStats = append(classStats, stat)
+		}
+	}
+
+	return classStats, nil
+}
+
+// getCourseStats 获取课程统计
+func (dao *AnalysisDAO) getCourseStats(ctx context.Context) ([]domain.CourseStat, error) {
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.M{
+			"courseName": bson.M{"$exists": true, "$ne": ""},
+			"faces":      bson.M{"$exists": true, "$ne": []interface{}{}},
+		}}},
+		{{"$unwind", "$faces"}},
+		{{"$group", bson.M{
+			"_id":             "$courseName",
+			"classCount":      bson.M{"$addToSet": "$className"},
+			"analysisCount":   bson.M{"$sum": 1},
+			"avgFocusScore":   bson.M{"$avg": "$faces.focus_score"},
+			"avgFatigueScore": bson.M{"$avg": "$faces.fatigue_score"},
+			"happyCount":      bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "happy"}}, 1, 0}}},
+			"neutralCount":    bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "neutral"}}, 1, 0}}},
+			"sadCount":        bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "sad"}}, 1, 0}}},
+			"angryCount":      bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "angry"}}, 1, 0}}},
+			"surpriseCount":   bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "surprise"}}, 1, 0}}},
+		}}},
+		{{"$project", bson.M{
+			"courseName":          "$_id",
+			"classCount":          bson.M{"$size": "$classCount"},
+			"analysisCount":       1,
+			"averageFocusScore":   "$avgFocusScore",
+			"averageFatigueScore": "$avgFatigueScore",
+			"emotionDistribution": bson.M{
+				"happy":    "$happyCount",
+				"neutral":  "$neutralCount",
+				"sad":      "$sadCount",
+				"angry":    "$angryCount",
+				"surprise": "$surpriseCount",
+			},
+		}}},
+	}
+
+	cursor, err := dao.Coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var courseStats []domain.CourseStat
+	for cursor.Next(ctx) {
+		var stat domain.CourseStat
+		if err := cursor.Decode(&stat); err == nil {
+			courseStats = append(courseStats, stat)
+		}
+	}
+
+	return courseStats, nil
+}
+
+// getStudentGlobalStats 获取学生全局统计
+func (dao *AnalysisDAO) getStudentGlobalStats(ctx context.Context) ([]domain.StudentGlobalStat, error) {
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.M{"faces": bson.M{"$exists": true, "$ne": []interface{}{}}}}},
+		{{"$unwind", "$faces"}},
+		{{"$group", bson.M{
+			"_id": bson.M{
+				"faceIndex":  "$faces.face_index",
+				"className":  "$className",
+				"courseName": "$courseName",
+			},
+			"analysisCount":   bson.M{"$sum": 1},
+			"avgFocusScore":   bson.M{"$avg": "$faces.focus_score"},
+			"avgFatigueScore": bson.M{"$avg": "$faces.fatigue_score"},
+			"emotions":        bson.M{"$push": "$faces.emotion"},
+			"latestTime":      bson.M{"$max": "$timestamp"},
+		}}},
+		{{"$project", bson.M{
+			"faceIndex":           "$_id.faceIndex",
+			"className":           "$_id.className",
+			"courseName":          "$_id.courseName",
+			"analysisCount":       1,
+			"averageFocusScore":   "$avgFocusScore",
+			"averageFatigueScore": "$avgFatigueScore",
+			"emotions":            1,
+			"latestAnalysisTime":  "$latestTime",
+		}}},
+		{{"$limit", 100}}, // 限制返回数量
+	}
+
+	cursor, err := dao.Coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var studentStats []domain.StudentGlobalStat
+	for cursor.Next(ctx) {
+		var stat domain.StudentGlobalStat
+		var rawData struct {
+			FaceIndex           int       `bson:"faceIndex"`
+			ClassName           string    `bson:"className"`
+			CourseName          string    `bson:"courseName"`
+			AnalysisCount       int       `bson:"analysisCount"`
+			AverageFocusScore   float64   `bson:"averageFocusScore"`
+			AverageFatigueScore float64   `bson:"averageFatigueScore"`
+			Emotions            []string  `bson:"emotions"`
+			LatestAnalysisTime  time.Time `bson:"latestAnalysisTime"`
+		}
+		if err := cursor.Decode(&rawData); err == nil {
+			stat.FaceIndex = rawData.FaceIndex
+			stat.ClassName = rawData.ClassName
+			stat.CourseName = rawData.CourseName
+			stat.AnalysisCount = rawData.AnalysisCount
+			stat.AverageFocusScore = rawData.AverageFocusScore
+			stat.AverageFatigueScore = rawData.AverageFatigueScore
+			stat.LatestAnalysisTime = rawData.LatestAnalysisTime
+			// 计算平均情绪
+			stat.AverageEmotion = calculateAverageEmotion(rawData.Emotions)
+			studentStats = append(studentStats, stat)
+		}
+	}
+
+	return studentStats, nil
+}
+
+// getTrendData 获取趋势数据
+func (dao *AnalysisDAO) getTrendData(ctx context.Context) ([]domain.EmotionTrendPoint, []domain.FocusTrendPoint, []domain.FatigueTrendPoint, error) {
+	// 获取最近30天的数据
+	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
+
+	// 情绪趋势
+	emotionPipeline := mongo.Pipeline{
+		{{"$match", bson.M{
+			"timestamp": bson.M{"$gte": thirtyDaysAgo},
+			"faces":     bson.M{"$exists": true, "$ne": []interface{}{}},
+		}}},
+		{{"$unwind", "$faces"}},
+		{{"$group", bson.M{
+			"_id": bson.M{
+				"$dateToString": bson.M{"format": "%Y-%m-%d", "date": "$timestamp"},
+			},
+			"happyCount":    bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "happy"}}, 1, 0}}},
+			"neutralCount":  bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "neutral"}}, 1, 0}}},
+			"sadCount":      bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "sad"}}, 1, 0}}},
+			"angryCount":    bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "angry"}}, 1, 0}}},
+			"surpriseCount": bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "surprise"}}, 1, 0}}},
+			"fearCount":     bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "fear"}}, 1, 0}}},
+			"disgustCount":  bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "disgust"}}, 1, 0}}},
+			"total":         bson.M{"$sum": 1},
+		}}},
+		{{"$sort", bson.M{"_id": 1}}},
+	}
+
+	emotionCursor, err := dao.Coll.Aggregate(ctx, emotionPipeline)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	defer emotionCursor.Close(ctx)
+
+	var emotionTrend []domain.EmotionTrendPoint
+	for emotionCursor.Next(ctx) {
+		var point domain.EmotionTrendPoint
+		var rawData struct {
+			Date          string `bson:"_id"`
+			HappyCount    int    `bson:"happyCount"`
+			NeutralCount  int    `bson:"neutralCount"`
+			SadCount      int    `bson:"sadCount"`
+			AngryCount    int    `bson:"angryCount"`
+			SurpriseCount int    `bson:"surpriseCount"`
+			FearCount     int    `bson:"fearCount"`
+			DisgustCount  int    `bson:"disgustCount"`
+			Total         int    `bson:"total"`
+		}
+		if err := emotionCursor.Decode(&rawData); err == nil {
+			point.Date = rawData.Date
+			point.Happy = rawData.HappyCount
+			point.Neutral = rawData.NeutralCount
+			point.Sad = rawData.SadCount
+			point.Angry = rawData.AngryCount
+			point.Surprise = rawData.SurpriseCount
+			point.Fear = rawData.FearCount
+			point.Disgust = rawData.DisgustCount
+			point.Total = rawData.Total
+			emotionTrend = append(emotionTrend, point)
+		}
+	}
+
+	// 专注度趋势
+	focusPipeline := mongo.Pipeline{
+		{{"$match", bson.M{
+			"timestamp": bson.M{"$gte": thirtyDaysAgo},
+			"faces":     bson.M{"$exists": true, "$ne": []interface{}{}},
+		}}},
+		{{"$unwind", "$faces"}},
+		{{"$group", bson.M{
+			"_id": bson.M{
+				"$dateToString": bson.M{"format": "%Y-%m-%d", "date": "$timestamp"},
+			},
+			"avgFocusScore": bson.M{"$avg": "$faces.focus_score"},
+			"studentCount":  bson.M{"$sum": 1},
+		}}},
+		{{"$sort", bson.M{"_id": 1}}},
+	}
+
+	focusCursor, err := dao.Coll.Aggregate(ctx, focusPipeline)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	defer focusCursor.Close(ctx)
+
+	var focusTrend []domain.FocusTrendPoint
+	for focusCursor.Next(ctx) {
+		var point domain.FocusTrendPoint
+		var rawData struct {
+			Date          string  `bson:"_id"`
+			AvgFocusScore float64 `bson:"avgFocusScore"`
+			StudentCount  int     `bson:"studentCount"`
+		}
+		if err := focusCursor.Decode(&rawData); err == nil {
+			point.Date = rawData.Date
+			point.AverageFocusScore = rawData.AvgFocusScore
+			point.StudentCount = rawData.StudentCount
+			focusTrend = append(focusTrend, point)
+		}
+	}
+
+	// 疲劳度趋势
+	fatiguePipeline := mongo.Pipeline{
+		{{"$match", bson.M{
+			"timestamp": bson.M{"$gte": thirtyDaysAgo},
+			"faces":     bson.M{"$exists": true, "$ne": []interface{}{}},
+		}}},
+		{{"$unwind", "$faces"}},
+		{{"$group", bson.M{
+			"_id": bson.M{
+				"$dateToString": bson.M{"format": "%Y-%m-%d", "date": "$timestamp"},
+			},
+			"avgFatigueScore":  bson.M{"$avg": "$faces.fatigue_score"},
+			"highFatigueCount": bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$gte": []interface{}{"$faces.fatigue_score", 0.7}}, 1, 0}}},
+		}}},
+		{{"$sort", bson.M{"_id": 1}}},
+	}
+
+	fatigueCursor, err := dao.Coll.Aggregate(ctx, fatiguePipeline)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	defer fatigueCursor.Close(ctx)
+
+	var fatigueTrend []domain.FatigueTrendPoint
+	for fatigueCursor.Next(ctx) {
+		var point domain.FatigueTrendPoint
+		var rawData struct {
+			Date             string  `bson:"_id"`
+			AvgFatigueScore  float64 `bson:"avgFatigueScore"`
+			HighFatigueCount int     `bson:"highFatigueCount"`
+		}
+		if err := fatigueCursor.Decode(&rawData); err == nil {
+			point.Date = rawData.Date
+			point.AverageFatigueScore = rawData.AvgFatigueScore
+			point.HighFatigueCount = rawData.HighFatigueCount
+			fatigueTrend = append(fatigueTrend, point)
+		}
+	}
+
+	return emotionTrend, focusTrend, fatigueTrend, nil
+}
+
+// calculateAverageEmotion 计算平均情绪
+func calculateAverageEmotion(emotions []string) string {
+	if len(emotions) == 0 {
+		return "neutral"
+	}
+
+	emotionCount := make(map[string]int)
+	for _, emotion := range emotions {
+		emotionCount[emotion]++
+	}
+
+	maxCount := 0
+	avgEmotion := "neutral"
+	for emotion, count := range emotionCount {
+		if count > maxCount {
+			maxCount = count
+			avgEmotion = emotion
+		}
+	}
+
+	return avgEmotion
+}

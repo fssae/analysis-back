@@ -106,6 +106,9 @@ func (h *TeacherHandler) RegisterRoutes(server *gin.Engine) {
 	teacherGroup.GET("/fatigue-analysis", h.GetFatigueAnalysis)
 	teacherGroup.GET("/blink-analysis", h.GetBlinkAnalysis)
 
+	// 全局可视化分析接口
+	teacherGroup.GET("/global-analysis", h.GetGlobalAnalysis)
+
 	// 教师设置
 	teacherGroup.GET("/settings", h.GetSettings)
 	teacherGroup.POST("/settings", h.UpdateSettings)

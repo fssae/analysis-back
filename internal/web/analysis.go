@@ -502,3 +502,22 @@ func (h *TeacherHandler) HandleAnalysisWebSocket(c *gin.Context) {
 	// 使用 imageId 作为任务标识注册 WebSocket 连接
 	wsManager.HandleConnection(imageId, c.Writer, c.Request)
 }
+
+// GetGlobalAnalysis 获取全局分析数据
+func (h *TeacherHandler) GetGlobalAnalysis(c *gin.Context) {
+	data, err := h.analysisService.GetGlobalAnalysisData(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code": 500,
+			"msg":  "获取全局分析数据失败",
+			"err":  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "success",
+		"data": data,
+	})
+}

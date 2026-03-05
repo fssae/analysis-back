@@ -260,4 +260,9 @@ func (s *AnalysisService) GetAnalysisResult(ctx context.Context, analysisId prim
 	return s.analysisRepo.FindById(ctx, analysisId)
 }
 
+// GetGlobalAnalysisData 获取全局分析数据
+func (s *AnalysisService) GetGlobalAnalysisData(ctx context.Context) (*domain.GlobalAnalysisResponse, error) {
+	return s.analysisRepo.GetAnalysisDAO().GetGlobalAnalysisData(ctx)
+}
+
 // 批量图片分析任务、状态、结果等接口建议继续用 AnalysisTask/FaceAnalysis 相关结构体，不建议再用 Analysis 结构体存储任务型数据。
