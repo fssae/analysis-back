@@ -157,6 +157,79 @@ type Report struct {
 	CreatedAt  time.Time          `json:"createdAt" bson:"createdAt"`
 }
 
+// ========== 分析报告相关结构体 ==========
+
+// ReportListItem 报告列表项
+type ReportListItem struct {
+	Id           string  `json:"id"`
+	Type         string  `json:"type"`
+	Date         string  `json:"date"`
+	CourseName   string  `json:"courseName"`
+	ClassName    string  `json:"className"`
+	AvgFocus     float64 `json:"avgFocus"`
+	StudentCount int     `json:"studentCount"`
+}
+
+// ReportDetail 报告详情
+type ReportDetail struct {
+	Id               string                 `json:"id"`
+	Type             string                 `json:"type"`
+	Date             string                 `json:"date"`
+	CourseName       string                 `json:"courseName"`
+	ClassName        string                 `json:"className"`
+	AvgFocus         float64                `json:"avgFocus"`
+	MaxFocus         float64                `json:"maxFocus"`
+	MinFocus         float64                `json:"minFocus"`
+	MaxFocusTime     int                    `json:"maxFocusTime"`
+	MinFocusTime     int                    `json:"minFocusTime"`
+	Duration         int                    `json:"duration"`
+	StudentCount     int                    `json:"studentCount"`
+	FocusTrend       float64                `json:"focusTrend"`
+	FocusData        []float64              `json:"focusData"`
+	DistributionData []ReportDistribution   `json:"distributionData"`
+	StudentRanking   []ReportStudentRanking `json:"studentRanking"`
+	DetailedData     []ReportDetailedData   `json:"detailedData"`
+	Suggestions      ReportSuggestions      `json:"suggestions"`
+}
+
+// ReportDistribution 报告分布数据
+type ReportDistribution struct {
+	Name  string `json:"name"`
+	Value int    `json:"value"`
+}
+
+// ReportStudentRanking 学生排名
+type ReportStudentRanking struct {
+	Id    int    `json:"id"`
+	Name  string `json:"name"`
+	Focus int    `json:"focus"`
+	Trend int    `json:"trend"`
+}
+
+// ReportDetailedData 详细数据
+type ReportDetailedData struct {
+	Time            string `json:"time"`
+	Focus           int    `json:"focus"`
+	FocusedCount    int    `json:"focusedCount"`
+	DistractedCount int    `json:"distractedCount"`
+	Notes           string `json:"notes"`
+}
+
+// ReportSuggestions 教学建议
+type ReportSuggestions struct {
+	Overall           string                   `json:"overall"`
+	Improvements      []string                 `json:"improvements"`
+	Methods           []string                 `json:"methods"`
+	AttentionStudents []ReportAttentionStudent `json:"attentionStudents"`
+}
+
+// ReportAttentionStudent 需要关注的学生
+type ReportAttentionStudent struct {
+	Id    int    `json:"id"`
+	Name  string `json:"name"`
+	Focus int    `json:"focus"`
+}
+
 // AnalysisTask 分析任务
 type AnalysisTask struct {
 	Id           primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
@@ -393,72 +466,72 @@ type EmotionTimeSeriesPoint struct {
 
 // GlobalAnalysisResponse 全局分析响应
 type GlobalAnalysisResponse struct {
-	Overview       GlobalOverview       `json:"overview"`
-	ClassStats     []ClassStat          `json:"classStats"`
-	CourseStats    []CourseStat         `json:"courseStats"`
-	StudentStats   []StudentGlobalStat  `json:"studentStats"`
-	EmotionTrend   []EmotionTrendPoint  `json:"emotionTrend"`
-	FocusTrend     []FocusTrendPoint    `json:"focusTrend"`
-	FatigueTrend   []FatigueTrendPoint  `json:"fatigueTrend"`
+	Overview     GlobalOverview      `json:"overview"`
+	ClassStats   []ClassStat         `json:"classStats"`
+	CourseStats  []CourseStat        `json:"courseStats"`
+	StudentStats []StudentGlobalStat `json:"studentStats"`
+	EmotionTrend []EmotionTrendPoint `json:"emotionTrend"`
+	FocusTrend   []FocusTrendPoint   `json:"focusTrend"`
+	FatigueTrend []FatigueTrendPoint `json:"fatigueTrend"`
 }
 
 // GlobalOverview 全局概览统计
 type GlobalOverview struct {
-	TotalStudents        int64   `json:"totalStudents"`
-	TotalAnalysis        int64   `json:"totalAnalysis"`
-	TotalVideos          int64   `json:"totalVideos"`
-	TotalImages          int64   `json:"totalImages"`
-	AverageFocusScore    float64 `json:"averageFocusScore"`
-	AverageFatigueScore  float64 `json:"averageFatigueScore"`
-	HighFatigueStudents  int64   `json:"highFatigueStudents"`
-	LowFocusStudents     int64   `json:"lowFocusStudents"`
-	EmotionDistribution  map[string]int `json:"emotionDistribution"`
+	TotalStudents       int64          `json:"totalStudents"`
+	TotalAnalysis       int64          `json:"totalAnalysis"`
+	TotalVideos         int64          `json:"totalVideos"`
+	TotalImages         int64          `json:"totalImages"`
+	AverageFocusScore   float64        `json:"averageFocusScore"`
+	AverageFatigueScore float64        `json:"averageFatigueScore"`
+	HighFatigueStudents int64          `json:"highFatigueStudents"`
+	LowFocusStudents    int64          `json:"lowFocusStudents"`
+	EmotionDistribution map[string]int `json:"emotionDistribution"`
 }
 
 // ClassStat 班级统计
 type ClassStat struct {
-	ClassName           string             `json:"className"`
-	StudentCount        int                `json:"studentCount"`
-	AnalysisCount       int                `json:"analysisCount"`
-	AverageFocusScore   float64            `json:"averageFocusScore"`
-	AverageFatigueScore float64            `json:"averageFatigueScore"`
-	EmotionDistribution map[string]int     `json:"emotionDistribution"`
-	CourseList          []string           `json:"courseList"`
+	ClassName           string         `json:"className"`
+	StudentCount        int            `json:"studentCount"`
+	AnalysisCount       int            `json:"analysisCount"`
+	AverageFocusScore   float64        `json:"averageFocusScore"`
+	AverageFatigueScore float64        `json:"averageFatigueScore"`
+	EmotionDistribution map[string]int `json:"emotionDistribution"`
+	CourseList          []string       `json:"courseList"`
 }
 
 // CourseStat 课程统计
 type CourseStat struct {
-	CourseName          string             `json:"courseName"`
-	ClassCount          int                `json:"classCount"`
-	AnalysisCount       int                `json:"analysisCount"`
-	AverageFocusScore   float64            `json:"averageFocusScore"`
-	AverageFatigueScore float64            `json:"averageFatigueScore"`
-	EmotionDistribution map[string]int     `json:"emotionDistribution"`
+	CourseName          string         `json:"courseName"`
+	ClassCount          int            `json:"classCount"`
+	AnalysisCount       int            `json:"analysisCount"`
+	AverageFocusScore   float64        `json:"averageFocusScore"`
+	AverageFatigueScore float64        `json:"averageFatigueScore"`
+	EmotionDistribution map[string]int `json:"emotionDistribution"`
 }
 
 // StudentGlobalStat 学生全局统计
 type StudentGlobalStat struct {
-	FaceIndex           int                `json:"faceIndex"`
-	ClassName           string             `json:"className"`
-	CourseName          string             `json:"courseName"`
-	AnalysisCount       int                `json:"analysisCount"`
-	AverageFocusScore   float64            `json:"averageFocusScore"`
-	AverageFatigueScore float64            `json:"averageFatigueScore"`
-	AverageEmotion      string             `json:"averageEmotion"`
-	LatestAnalysisTime  time.Time          `json:"latestAnalysisTime"`
+	FaceIndex           int       `json:"faceIndex"`
+	ClassName           string    `json:"className"`
+	CourseName          string    `json:"courseName"`
+	AnalysisCount       int       `json:"analysisCount"`
+	AverageFocusScore   float64   `json:"averageFocusScore"`
+	AverageFatigueScore float64   `json:"averageFatigueScore"`
+	AverageEmotion      string    `json:"averageEmotion"`
+	LatestAnalysisTime  time.Time `json:"latestAnalysisTime"`
 }
 
 // EmotionTrendPoint 情绪趋势点
 type EmotionTrendPoint struct {
-	Date        string         `json:"date"`
-	Happy       int            `json:"happy"`
-	Neutral     int            `json:"neutral"`
-	Sad         int            `json:"sad"`
-	Angry       int            `json:"angry"`
-	Surprise    int            `json:"surprise"`
-	Fear        int            `json:"fear"`
-	Disgust     int            `json:"disgust"`
-	Total       int            `json:"total"`
+	Date     string `json:"date"`
+	Happy    int    `json:"happy"`
+	Neutral  int    `json:"neutral"`
+	Sad      int    `json:"sad"`
+	Angry    int    `json:"angry"`
+	Surprise int    `json:"surprise"`
+	Fear     int    `json:"fear"`
+	Disgust  int    `json:"disgust"`
+	Total    int    `json:"total"`
 }
 
 // FocusTrendPoint 专注度趋势点
