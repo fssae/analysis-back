@@ -384,7 +384,6 @@ func (h *TeacherHandler) GetClassAnalysis(c *gin.Context) {
 	if className != "" {
 		className = className + " 班"
 	}
-	// 移除自动追加"班"字的逻辑，保持传入的班级名称原样
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
 	page := c.DefaultQuery("page", "1")

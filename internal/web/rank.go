@@ -2,8 +2,10 @@ package web
 
 import (
 	"classroom-analysis/internal/domain"
-	"github.com/gin-gonic/gin"
 	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 func (h *TeacherHandler) GetRank(c *gin.Context) {
@@ -14,6 +16,10 @@ func (h *TeacherHandler) GetRank(c *gin.Context) {
 			"msg":  "请求参数错误",
 		})
 		return
+	}
+	// 去掉classname中的"班"字
+	if req.ClassName != "" {
+		req.ClassName = strings.TrimSuffix(req.ClassName, "班")
 	}
 	if req.Page == 0 || req.PageSize == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
