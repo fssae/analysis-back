@@ -4,6 +4,7 @@ import (
 	"classroom-analysis/internal/domain"
 	"classroom-analysis/internal/repository/dao"
 	"context"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -122,11 +123,16 @@ func (r *AnalysisRepository) GetClassAnalysisList(
 		if len(a.Faces) > 0 {
 			focusAvg = sum / float64(len(a.Faces))
 		}
+		// 返回结果时给班级名称加上"班"字
+		className := a.ClassName
+		if className != "" && !strings.HasSuffix(className, "班") {
+			className += "班"
+		}
 		item := domain.ClassAnalysisItem{
 			ImageId:    string(a.ImageId.Hex()),
 			CourseName: a.CourseName,
 			FileName:   a.FileName,
-			ClassName:  a.ClassName,
+			ClassName:  className,
 			Date:       a.Timestamp.Format("2006-01-02 15:04"),
 			FocusAvg:   focusAvg,
 			ResultUrl:  a.ResultUrl,
