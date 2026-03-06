@@ -253,6 +253,67 @@ func (h *TeacherHandler) GetHistoryDetail(c *gin.Context) {
 	})
 }
 
+// DeleteHistory 删除历史记录
+func (h *TeacherHandler) DeleteHistory(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  "缺少记录ID",
+		})
+		return
+	}
+
+	// 转换ID为ObjectID
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  "记录ID格式错误",
+		})
+		return
+	}
+
+	// 先检查记录是否存在
+	analysis, err := h.analysisService.GetAnalysisById(c.Request.Context(), objectID)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code": 404,
+				"msg":  "记录不存在",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code": 500,
+			"msg":  "查询记录失败",
+		})
+		return
+	}
+
+	if analysis == nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"code": 404,
+			"msg":  "记录不存在",
+		})
+		return
+	}
+
+	// 执行删除
+	if err := h.analysisService.DeleteAnalysisById(c.Request.Context(), objectID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code": 500,
+			"msg":  "删除记录失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "删除成功",
+	})
+}
+
 // GetImageAnalysisResult 获取图片分析结果（汇总）
 func (h *TeacherHandler) GetImageAnalysisResult(c *gin.Context) {
 	analysisIdStr := c.Query("analysisId")

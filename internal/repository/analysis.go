@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -101,6 +102,12 @@ func (r *AnalysisRepository) GetLastAnalysisTime(ctx context.Context, teacherId 
 
 func (r *AnalysisRepository) GetAnalysisDAO() *dao.AnalysisDAO {
 	return r.analysisDAO
+}
+
+// DeleteById 根据ID删除分析记录
+func (r *AnalysisRepository) DeleteById(ctx context.Context, id primitive.ObjectID) error {
+	_, err := r.analysisDAO.DeleteOne(ctx, bson.M{"_id": id})
+	return err
 }
 
 // 获取班级分析列表

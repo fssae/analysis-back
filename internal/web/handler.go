@@ -81,6 +81,7 @@ func (h *TeacherHandler) RegisterRoutes(server *gin.Engine) {
 
 	teacherGroup.GET("/history", h.GetHistory)
 	teacherGroup.GET("/history/:id", h.GetHistoryDetail)
+	teacherGroup.DELETE("/history/:id", h.DeleteHistory)
 	teacherGroup.GET("/video/analysis-detail", h.GetVideoAnalysisDetail)
 	teacherGroup.POST("/image/analysis-config", h.UpdateConfig)
 	teacherGroup.POST("/update-analysis-name", h.UpdateAnalysisName)

@@ -82,6 +82,11 @@ func (s *AnalysisService) GetAnalysisById(ctx context.Context, id primitive.Obje
 	return s.analysisRepo.FindById(ctx, id)
 }
 
+// DeleteAnalysisById 根据 ID 删除分析记录
+func (s *AnalysisService) DeleteAnalysisById(ctx context.Context, id primitive.ObjectID) error {
+	return s.analysisRepo.DeleteById(ctx, id)
+}
+
 func (s *AnalysisService) UpdateFileNameByTaskId(ctx context.Context, taskId, fileName string) error {
 	return s.analysisRepo.UpdateFileNameByTaskId(ctx, taskId, fileName)
 }

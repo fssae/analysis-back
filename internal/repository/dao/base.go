@@ -85,3 +85,8 @@ func (d *BaseDAO[T]) Count(ctx context.Context, filter bson.M) (int64, error) {
 func (d *BaseDAO[T]) UpdateOne(ctx context.Context, filter bson.M, update bson.M, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
 	return d.Coll.UpdateOne(ctx, filter, update, opts...)
 }
+
+// DeleteOne 通用删除
+func (d *BaseDAO[T]) DeleteOne(ctx context.Context, filter bson.M) (*mongo.DeleteResult, error) {
+	return d.Coll.DeleteOne(ctx, filter)
+}
