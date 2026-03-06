@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 )
 
@@ -204,6 +205,51 @@ func (h *TeacherHandler) GetHistory(c *gin.Context) {
 			"list":  history,
 			"total": total,
 		},
+	})
+}
+
+// GetHistoryDetail 获取单条历史记录详情
+func (h *TeacherHandler) GetHistoryDetail(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  "缺少记录ID",
+		})
+		return
+	}
+
+	// 转换ID为ObjectID
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  "记录ID格式错误",
+		})
+		return
+	}
+
+	// 获取记录详情
+	analysis, err := h.analysisService.GetAnalysisById(c.Request.Context(), objectID)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code": 404,
+				"msg":  "记录不存在",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code": 500,
+			"msg":  "获取记录详情失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "success",
+		"data": analysis,
 	})
 }
 
