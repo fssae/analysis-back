@@ -20,8 +20,8 @@ func (h *TeacherHandler) GetRank(c *gin.Context) {
 	// 去掉classname中的"班"字
 	if req.ClassName != "" {
 		req.ClassName = strings.TrimSuffix(req.ClassName, "班")
+		req.ClassName = req.ClassName + " 班"
 	}
-	req.ClassName = req.ClassName + " 班"
 	if req.Page == 0 || req.PageSize == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code": 400,
