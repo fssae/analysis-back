@@ -640,22 +640,3 @@ func (h *TeacherHandler) GetGlobalAnalysis(c *gin.Context) {
 		"data": data,
 	})
 }
-
-// GetVideoImageStats 获取视频和图片统计
-func (h *TeacherHandler) GetVideoImageStats(c *gin.Context) {
-	data, err := h.analysisService.GetVideoImageStats(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code": 500,
-			"msg":  "获取视频和图片统计失败",
-			"err":  err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "success",
-		"data": data,
-	})
-}

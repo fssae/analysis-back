@@ -489,8 +489,8 @@ func (dao *AnalysisDAO) GetGlobalAnalysisData(ctx context.Context) (*domain.Glob
 		Overview: domain.GlobalOverview{
 			EmotionDistribution: make(map[string]int),
 		},
-		ClassStats:   make([]domain.ClassStat, 0),
-		CourseStats:  make([]domain.CourseStat, 0),
+		VideoStats:   make([]domain.VideoStat, 0),
+		ImageStats:   make([]domain.ImageStat, 0),
 		StudentStats: make([]domain.StudentGlobalStat, 0),
 		EmotionTrend: make([]domain.EmotionTrendPoint, 0),
 		FocusTrend:   make([]domain.FocusTrendPoint, 0),
@@ -504,19 +504,19 @@ func (dao *AnalysisDAO) GetGlobalAnalysisData(ctx context.Context) (*domain.Glob
 	}
 	response.Overview = *overview
 
-	// 2. 获取班级统计
-	classStats, err := dao.getClassStats(ctx)
+	// 2. 获取视频统计
+	videoStats, err := dao.getVideoStats(ctx)
 	if err != nil {
 		return nil, err
 	}
-	response.ClassStats = classStats
+	response.VideoStats = videoStats
 
-	// 3. 获取课程统计
-	courseStats, err := dao.getCourseStats(ctx)
+	// 3. 获取图片统计
+	imageStats, err := dao.getImageStats(ctx)
 	if err != nil {
 		return nil, err
 	}
-	response.CourseStats = courseStats
+	response.ImageStats = imageStats
 
 	// 4. 获取学生统计
 	studentStats, err := dao.getStudentGlobalStats(ctx)
@@ -619,16 +619,18 @@ func (dao *AnalysisDAO) getGlobalOverview(ctx context.Context) (*domain.GlobalOv
 	return overview, nil
 }
 
-// getClassStats 获取班级统计
-func (dao *AnalysisDAO) getClassStats(ctx context.Context) ([]domain.ClassStat, error) {
+// getVideoStats 获取视频统计
+func (dao *AnalysisDAO) getVideoStats(ctx context.Context) ([]domain.VideoStat, error) {
 	pipeline := mongo.Pipeline{
 		{{"$match", bson.M{
-			"className": bson.M{"$exists": true, "$ne": ""},
-			"faces":     bson.M{"$exists": true, "$ne": []interface{}{}},
+			"filetype": "video",
+			"faces":    bson.M{"$exists": true, "$ne": []interface{}{}},
 		}}},
 		{{"$unwind", "$faces"}},
 		{{"$group", bson.M{
-			"_id":             "$className",
+			"_id":             "$fileName",
+			"className":       bson.M{"$first": "$className"},
+			"courseName":      bson.M{"$first": "$courseName"},
 			"studentCount":    bson.M{"$addToSet": "$faces.face_index"},
 			"analysisCount":   bson.M{"$sum": 1},
 			"avgFocusScore":   bson.M{"$avg": "$faces.focus_score"},
@@ -638,10 +640,11 @@ func (dao *AnalysisDAO) getClassStats(ctx context.Context) ([]domain.ClassStat, 
 			"sadCount":        bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "sad"}}, 1, 0}}},
 			"angryCount":      bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "angry"}}, 1, 0}}},
 			"surpriseCount":   bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "surprise"}}, 1, 0}}},
-			"courseList":      bson.M{"$addToSet": "$courseName"},
 		}}},
 		{{"$project", bson.M{
-			"className":           "$_id",
+			"fileName":            "$_id",
+			"className":           1,
+			"courseName":          1,
 			"studentCount":        bson.M{"$size": "$studentCount"},
 			"analysisCount":       1,
 			"averageFocusScore":   "$avgFocusScore",
@@ -653,8 +656,8 @@ func (dao *AnalysisDAO) getClassStats(ctx context.Context) ([]domain.ClassStat, 
 				"angry":    "$angryCount",
 				"surprise": "$surpriseCount",
 			},
-			"courseList": 1,
 		}}},
+		{{"$limit", 50}}, // 限制返回数量
 	}
 
 	cursor, err := dao.Coll.Aggregate(ctx, pipeline)
@@ -663,31 +666,33 @@ func (dao *AnalysisDAO) getClassStats(ctx context.Context) ([]domain.ClassStat, 
 	}
 	defer cursor.Close(ctx)
 
-	var classStats []domain.ClassStat
+	var videoStats []domain.VideoStat
 	for cursor.Next(ctx) {
-		var stat domain.ClassStat
+		var stat domain.VideoStat
 		if err := cursor.Decode(&stat); err == nil {
 			// 保留整数
 			stat.AverageFocusScore = math.Round(stat.AverageFocusScore * 100)
 			stat.AverageFatigueScore = math.Round(stat.AverageFatigueScore * 100)
-			classStats = append(classStats, stat)
+			videoStats = append(videoStats, stat)
 		}
 	}
 
-	return classStats, nil
+	return videoStats, nil
 }
 
-// getCourseStats 获取课程统计
-func (dao *AnalysisDAO) getCourseStats(ctx context.Context) ([]domain.CourseStat, error) {
+// getImageStats 获取图片统计
+func (dao *AnalysisDAO) getImageStats(ctx context.Context) ([]domain.ImageStat, error) {
 	pipeline := mongo.Pipeline{
 		{{"$match", bson.M{
-			"courseName": bson.M{"$exists": true, "$ne": ""},
-			"faces":      bson.M{"$exists": true, "$ne": []interface{}{}},
+			"filetype": "image",
+			"faces":    bson.M{"$exists": true, "$ne": []interface{}{}},
 		}}},
 		{{"$unwind", "$faces"}},
 		{{"$group", bson.M{
-			"_id":             "$courseName",
-			"classCount":      bson.M{"$addToSet": "$className"},
+			"_id":             "$fileName",
+			"className":       bson.M{"$first": "$className"},
+			"courseName":      bson.M{"$first": "$courseName"},
+			"studentCount":    bson.M{"$addToSet": "$faces.face_index"},
 			"analysisCount":   bson.M{"$sum": 1},
 			"avgFocusScore":   bson.M{"$avg": "$faces.focus_score"},
 			"avgFatigueScore": bson.M{"$avg": "$faces.fatigue_score"},
@@ -698,8 +703,10 @@ func (dao *AnalysisDAO) getCourseStats(ctx context.Context) ([]domain.CourseStat
 			"surpriseCount":   bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "surprise"}}, 1, 0}}},
 		}}},
 		{{"$project", bson.M{
-			"courseName":          "$_id",
-			"classCount":          bson.M{"$size": "$classCount"},
+			"fileName":            "$_id",
+			"className":           1,
+			"courseName":          1,
+			"studentCount":        bson.M{"$size": "$studentCount"},
 			"analysisCount":       1,
 			"averageFocusScore":   "$avgFocusScore",
 			"averageFatigueScore": "$avgFatigueScore",
@@ -711,6 +718,7 @@ func (dao *AnalysisDAO) getCourseStats(ctx context.Context) ([]domain.CourseStat
 				"surprise": "$surpriseCount",
 			},
 		}}},
+		{{"$limit", 50}}, // 限制返回数量
 	}
 
 	cursor, err := dao.Coll.Aggregate(ctx, pipeline)
@@ -719,18 +727,18 @@ func (dao *AnalysisDAO) getCourseStats(ctx context.Context) ([]domain.CourseStat
 	}
 	defer cursor.Close(ctx)
 
-	var courseStats []domain.CourseStat
+	var imageStats []domain.ImageStat
 	for cursor.Next(ctx) {
-		var stat domain.CourseStat
+		var stat domain.ImageStat
 		if err := cursor.Decode(&stat); err == nil {
 			// 保留整数
 			stat.AverageFocusScore = math.Round(stat.AverageFocusScore * 100)
 			stat.AverageFatigueScore = math.Round(stat.AverageFatigueScore * 100)
-			courseStats = append(courseStats, stat)
+			imageStats = append(imageStats, stat)
 		}
 	}
 
-	return courseStats, nil
+	return imageStats, nil
 }
 
 // getStudentGlobalStats 获取学生全局统计
@@ -964,277 +972,4 @@ func calculateAverageEmotion(emotions []string) string {
 	}
 
 	return avgEmotion
-}
-
-// ========== 视频和图片统计相关方法 ==========
-
-// GetVideoImageStats 获取视频和图片统计
-func (dao *AnalysisDAO) GetVideoImageStats(ctx context.Context) (*domain.VideoImageStatsResponse, error) {
-	response := &domain.VideoImageStatsResponse{
-		VideoStats: domain.VideoStatistics{
-			ClassDistribution:    make([]domain.VideoClassStat, 0),
-			CourseDistribution:   make([]domain.VideoCourseStat, 0),
-			DurationDistribution: make([]domain.DurationRangeStat, 0),
-		},
-		ImageStats: domain.ImageStatistics{
-			ClassDistribution:  make([]domain.ImageClassStat, 0),
-			CourseDistribution: make([]domain.ImageCourseStat, 0),
-			FormatDistribution: make(map[string]int),
-		},
-	}
-
-	// 1. 获取视频统计
-	videoStats, err := dao.getVideoStats(ctx)
-	if err != nil {
-		return nil, err
-	}
-	response.VideoStats = *videoStats
-
-	// 2. 获取图片统计
-	imageStats, err := dao.getImageStats(ctx)
-	if err != nil {
-		return nil, err
-	}
-	response.ImageStats = *imageStats
-
-	return response, nil
-}
-
-// getVideoStats 获取视频统计
-func (dao *AnalysisDAO) getVideoStats(ctx context.Context) (*domain.VideoStatistics, error) {
-	stats := &domain.VideoStatistics{
-		ClassDistribution:    make([]domain.VideoClassStat, 0),
-		CourseDistribution:   make([]domain.VideoCourseStat, 0),
-		DurationDistribution: make([]domain.DurationRangeStat, 0),
-	}
-
-	// 统计视频总数
-	videoCount, err := dao.Count(ctx, bson.M{"filetype": "video"})
-	if err != nil {
-		return nil, err
-	}
-	stats.TotalCount = videoCount
-
-	// 按班级统计视频
-	classPipeline := mongo.Pipeline{
-		{{"$match", bson.M{"filetype": "video", "className": bson.M{"$exists": true, "$ne": ""}}}},
-		{{"$group", bson.M{
-			"_id":             "$className",
-			"videoCount":      bson.M{"$sum": 1},
-			"totalDuration":   bson.M{"$sum": bson.M{"$ifNull": []interface{}{"$duration", 0}}},
-			"avgDuration":     bson.M{"$avg": bson.M{"$ifNull": []interface{}{"$duration", 0}}},
-		}}},
-		{{"$project", bson.M{
-			"className":       "$_id",
-			"videoCount":      1,
-			"totalDuration":   1,
-			"averageDuration": bson.M{"$round": []interface{}{"$avgDuration", 2}},
-		}}},
-	}
-
-	classCursor, err := dao.Coll.Aggregate(ctx, classPipeline)
-	if err != nil {
-		return nil, err
-	}
-	defer classCursor.Close(ctx)
-
-	for classCursor.Next(ctx) {
-		var stat domain.VideoClassStat
-		if err := classCursor.Decode(&stat); err == nil {
-			stats.ClassDistribution = append(stats.ClassDistribution, stat)
-		}
-	}
-
-	// 按课程统计视频
-	coursePipeline := mongo.Pipeline{
-		{{"$match", bson.M{"filetype": "video", "courseName": bson.M{"$exists": true, "$ne": ""}}}},
-		{{"$group", bson.M{
-			"_id":             "$courseName",
-			"videoCount":      bson.M{"$sum": 1},
-			"totalDuration":   bson.M{"$sum": bson.M{"$ifNull": []interface{}{"$duration", 0}}},
-			"avgDuration":     bson.M{"$avg": bson.M{"$ifNull": []interface{}{"$duration", 0}}},
-		}}},
-		{{"$project", bson.M{
-			"courseName":      "$_id",
-			"videoCount":      1,
-			"totalDuration":   1,
-			"averageDuration": bson.M{"$round": []interface{}{"$avgDuration", 2}},
-		}}},
-	}
-
-	courseCursor, err := dao.Coll.Aggregate(ctx, coursePipeline)
-	if err != nil {
-		return nil, err
-	}
-	defer courseCursor.Close(ctx)
-
-	for courseCursor.Next(ctx) {
-		var stat domain.VideoCourseStat
-		if err := courseCursor.Decode(&stat); err == nil {
-			stats.CourseDistribution = append(stats.CourseDistribution, stat)
-		}
-	}
-
-	// 计算总时长和平均时长
-	var totalDuration int64
-	var countWithDuration int64
-	for _, classStat := range stats.ClassDistribution {
-		totalDuration += classStat.TotalDuration
-		if classStat.TotalDuration > 0 {
-			countWithDuration++
-		}
-	}
-	stats.TotalDuration = totalDuration
-	if countWithDuration > 0 {
-		stats.AverageDuration = float64(totalDuration) / float64(stats.TotalCount)
-	}
-
-	// 时长分布统计
-	stats.DurationDistribution = []domain.DurationRangeStat{
-		{Range: "0-5分钟", Count: 0},
-		{Range: "5-15分钟", Count: 0},
-		{Range: "15-30分钟", Count: 0},
-		{Range: "30-60分钟", Count: 0},
-		{Range: "60分钟以上", Count: 0},
-	}
-
-	durationPipeline := mongo.Pipeline{
-		{{"$match", bson.M{"filetype": "video", "duration": bson.M{"$exists": true}}}},
-		{{"$group", bson.M{
-			"_id": nil,
-			"range0_5":   bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$and": []interface{}{bson.M{"$gte": []interface{}{"$duration", 0}}, bson.M{"$lt": []interface{}{"$duration", 300}}}}, 1, 0}}},
-			"range5_15":  bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$and": []interface{}{bson.M{"$gte": []interface{}{"$duration", 300}}, bson.M{"$lt": []interface{}{"$duration", 900}}}}, 1, 0}}},
-			"range15_30": bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$and": []interface{}{bson.M{"$gte": []interface{}{"$duration", 900}}, bson.M{"$lt": []interface{}{"$duration", 1800}}}}, 1, 0}}},
-			"range30_60": bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$and": []interface{}{bson.M{"$gte": []interface{}{"$duration", 1800}}, bson.M{"$lt": []interface{}{"$duration", 3600}}}}, 1, 0}}},
-			"range60+":   bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$gte": []interface{}{"$duration", 3600}}, 1, 0}}},
-		}}},
-	}
-
-	durationCursor, err := dao.Coll.Aggregate(ctx, durationPipeline)
-	if err != nil {
-		return nil, err
-	}
-	defer durationCursor.Close(ctx)
-
-	if durationCursor.Next(ctx) {
-		var result struct {
-			Range0_5   int64 `bson:"range0_5"`
-			Range5_15  int64 `bson:"range5_15"`
-			Range15_30 int64 `bson:"range15_30"`
-			Range30_60 int64 `bson:"range30_60"`
-			Range60    int64 `bson:"range60+"`
-		}
-		if err := durationCursor.Decode(&result); err == nil {
-			stats.DurationDistribution[0].Count = result.Range0_5
-			stats.DurationDistribution[1].Count = result.Range5_15
-			stats.DurationDistribution[2].Count = result.Range15_30
-			stats.DurationDistribution[3].Count = result.Range30_60
-			stats.DurationDistribution[4].Count = result.Range60
-		}
-	}
-
-	return stats, nil
-}
-
-// getImageStats 获取图片统计
-func (dao *AnalysisDAO) getImageStats(ctx context.Context) (*domain.ImageStatistics, error) {
-	stats := &domain.ImageStatistics{
-		ClassDistribution:  make([]domain.ImageClassStat, 0),
-		CourseDistribution: make([]domain.ImageCourseStat, 0),
-		FormatDistribution: make(map[string]int),
-	}
-
-	// 统计图片总数
-	imageCount, err := dao.Count(ctx, bson.M{"filetype": "image"})
-	if err != nil {
-		return nil, err
-	}
-	stats.TotalCount = imageCount
-
-	// 按班级统计图片
-	classPipeline := mongo.Pipeline{
-		{{"$match", bson.M{"filetype": "image", "className": bson.M{"$exists": true, "$ne": ""}}}},
-		{{"$group", bson.M{
-			"_id":        "$className",
-			"imageCount": bson.M{"$sum": 1},
-		}}},
-		{{"$project", bson.M{
-			"className":  "$_id",
-			"imageCount": 1,
-		}}},
-	}
-
-	classCursor, err := dao.Coll.Aggregate(ctx, classPipeline)
-	if err != nil {
-		return nil, err
-	}
-	defer classCursor.Close(ctx)
-
-	for classCursor.Next(ctx) {
-		var stat domain.ImageClassStat
-		if err := classCursor.Decode(&stat); err == nil {
-			stats.ClassDistribution = append(stats.ClassDistribution, stat)
-		}
-	}
-
-	// 按课程统计图片
-	coursePipeline := mongo.Pipeline{
-		{{"$match", bson.M{"filetype": "image", "courseName": bson.M{"$exists": true, "$ne": ""}}}},
-		{{"$group", bson.M{
-			"_id":        "$courseName",
-			"imageCount": bson.M{"$sum": 1},
-		}}},
-		{{"$project", bson.M{
-			"courseName": "$_id",
-			"imageCount": 1,
-		}}},
-	}
-
-	courseCursor, err := dao.Coll.Aggregate(ctx, coursePipeline)
-	if err != nil {
-		return nil, err
-	}
-	defer courseCursor.Close(ctx)
-
-	for courseCursor.Next(ctx) {
-		var stat domain.ImageCourseStat
-		if err := courseCursor.Decode(&stat); err == nil {
-			stats.CourseDistribution = append(stats.CourseDistribution, stat)
-		}
-	}
-
-	// 格式分布统计（从result_url中提取）
-	formatPipeline := mongo.Pipeline{
-		{{"$match", bson.M{"filetype": "image", "result_url": bson.M{"$exists": true, "$ne": ""}}}},
-		{{"$project", bson.M{
-			"extension": bson.M{
-				"$arrayElemAt": []interface{}{
-					bson.M{"$split": []interface{}{"$result_url", "."}},
-					-1,
-				},
-			},
-		}}},
-		{{"$group", bson.M{
-			"_id":   "$extension",
-			"count": bson.M{"$sum": 1},
-		}}},
-	}
-
-	formatCursor, err := dao.Coll.Aggregate(ctx, formatPipeline)
-	if err != nil {
-		return nil, err
-	}
-	defer formatCursor.Close(ctx)
-
-	for formatCursor.Next(ctx) {
-		var result struct {
-			ID    string `bson:"_id"`
-			Count int    `bson:"count"`
-		}
-		if err := formatCursor.Decode(&result); err == nil && result.ID != "" {
-			stats.FormatDistribution[result.ID] = result.Count
-		}
-	}
-
-	return stats, nil
 }

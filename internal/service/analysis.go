@@ -285,9 +285,4 @@ func (s *AnalysisService) GetGlobalAnalysisData(ctx context.Context) (*domain.Gl
 	return s.analysisRepo.GetAnalysisDAO().GetGlobalAnalysisData(ctx)
 }
 
-// GetVideoImageStats 获取视频和图片统计
-func (s *AnalysisService) GetVideoImageStats(ctx context.Context) (*domain.VideoImageStatsResponse, error) {
-	return s.analysisRepo.GetVideoImageStats(ctx)
-}
-
 // 批量图片分析任务、状态、结果等接口建议继续用 AnalysisTask/FaceAnalysis 相关结构体，不建议再用 Analysis 结构体存储任务型数据。
