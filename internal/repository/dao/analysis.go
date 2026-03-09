@@ -621,6 +621,7 @@ func (dao *AnalysisDAO) getGlobalOverview(ctx context.Context) (*domain.GlobalOv
 
 // getVideoStats 获取视频统计
 func (dao *AnalysisDAO) getVideoStats(ctx context.Context) ([]domain.VideoStat, error) {
+	// 首先获取视频文件列表
 	pipeline := mongo.Pipeline{
 		{{"$match", bson.M{
 			"filetype": "video",
@@ -635,11 +636,8 @@ func (dao *AnalysisDAO) getVideoStats(ctx context.Context) ([]domain.VideoStat, 
 			"analysisCount":   bson.M{"$sum": 1},
 			"avgFocusScore":   bson.M{"$avg": "$faces.focus_score"},
 			"avgFatigueScore": bson.M{"$avg": "$faces.fatigue_score"},
-			"happyCount":      bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "happy"}}, 1, 0}}},
-			"neutralCount":    bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "neutral"}}, 1, 0}}},
-			"sadCount":        bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "sad"}}, 1, 0}}},
-			"angryCount":      bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "angry"}}, 1, 0}}},
-			"surpriseCount":   bson.M{"$sum": bson.M{"$cond": []interface{}{bson.M{"$eq": []interface{}{"$faces.emotion", "surprise"}}, 1, 0}}},
+			// 收集所有 recent_emotions 数组用于后续统计
+			"allRecentEmotions": bson.M{"$push": "$faces.recent_emotions"},
 		}}},
 		{{"$project", bson.M{
 			"fileName":            "$_id",
@@ -649,13 +647,7 @@ func (dao *AnalysisDAO) getVideoStats(ctx context.Context) ([]domain.VideoStat, 
 			"analysisCount":       1,
 			"averageFocusScore":   "$avgFocusScore",
 			"averageFatigueScore": "$avgFatigueScore",
-			"emotionDistribution": bson.M{
-				"happy":    "$happyCount",
-				"neutral":  "$neutralCount",
-				"sad":      "$sadCount",
-				"angry":    "$angryCount",
-				"surprise": "$surpriseCount",
-			},
+			"allRecentEmotions":   1,
 		}}},
 		{{"$limit", 50}}, // 限制返回数量
 	}
@@ -669,18 +661,29 @@ func (dao *AnalysisDAO) getVideoStats(ctx context.Context) ([]domain.VideoStat, 
 	var videoStats []domain.VideoStat
 	for cursor.Next(ctx) {
 		var rawData struct {
-			FileName            string         `bson:"fileName"`
-			ClassName           string         `bson:"className"`
-			CourseName          string         `bson:"courseName"`
-			StudentCount        int            `bson:"studentCount"`
-			AnalysisCount       int            `bson:"analysisCount"`
-			AverageFocusScore   float64        `bson:"averageFocusScore"`
-			AverageFatigueScore float64        `bson:"averageFatigueScore"`
-			EmotionDistribution map[string]int `bson:"emotionDistribution"`
+			FileName            string     `bson:"fileName"`
+			ClassName           string     `bson:"className"`
+			CourseName          string     `bson:"courseName"`
+			StudentCount        int        `bson:"studentCount"`
+			AnalysisCount       int        `bson:"analysisCount"`
+			AverageFocusScore   float64    `bson:"averageFocusScore"`
+			AverageFatigueScore float64    `bson:"averageFatigueScore"`
+			AllRecentEmotions   [][]string `bson:"allRecentEmotions"`
 		}
 		if err := cursor.Decode(&rawData); err != nil {
 			continue
 		}
+
+		// 统计情绪分布 - 从 recent_emotions 数组中统计
+		emotionDistribution := make(map[string]int)
+		for _, emotions := range rawData.AllRecentEmotions {
+			for _, emotion := range emotions {
+				if emotion != "" {
+					emotionDistribution[emotion]++
+				}
+			}
+		}
+
 		stat := domain.VideoStat{
 			FileName:            rawData.FileName,
 			ClassName:           rawData.ClassName,
@@ -689,7 +692,7 @@ func (dao *AnalysisDAO) getVideoStats(ctx context.Context) ([]domain.VideoStat, 
 			AnalysisCount:       rawData.AnalysisCount,
 			AverageFocusScore:   math.Round(rawData.AverageFocusScore * 100),
 			AverageFatigueScore: math.Round(rawData.AverageFatigueScore * 100),
-			EmotionDistribution: rawData.EmotionDistribution,
+			EmotionDistribution: emotionDistribution,
 		}
 		videoStats = append(videoStats, stat)
 	}
