@@ -111,6 +111,9 @@ func (h *TeacherHandler) RegisterRoutes(server *gin.Engine) {
 	// 全局可视化分析接口
 	teacherGroup.GET("/global-analysis", h.GetGlobalAnalysis)
 
+	// 视频和图片统计接口
+	teacherGroup.GET("/video-image-stats", h.GetVideoImageStats)
+
 	// 教师设置
 	teacherGroup.GET("/settings", h.GetSettings)
 	teacherGroup.POST("/settings", h.UpdateSettings)

@@ -548,3 +548,63 @@ type FatigueTrendPoint struct {
 	AverageFatigueScore float64 `json:"averageFatigueScore"`
 	HighFatigueCount    int     `json:"highFatigueCount"`
 }
+
+// ========== 视频和图片统计相关结构体 ==========
+
+// VideoImageStatsResponse 视频和图片统计响应
+type VideoImageStatsResponse struct {
+	VideoStats VideoStatistics `json:"videoStats"`
+	ImageStats ImageStatistics `json:"imageStats"`
+}
+
+// VideoStatistics 视频统计
+type VideoStatistics struct {
+	TotalCount        int64                  `json:"totalCount"`
+	TotalDuration     int64                  `json:"totalDuration"`     // 总时长(秒)
+	AverageDuration   float64                `json:"averageDuration"`   // 平均时长(秒)
+	ClassDistribution []VideoClassStat       `json:"classDistribution"` // 按班级分布
+	CourseDistribution []VideoCourseStat     `json:"courseDistribution"` // 按课程分布
+	DurationDistribution []DurationRangeStat `json:"durationDistribution"` // 时长分布
+}
+
+// ImageStatistics 图片统计
+type ImageStatistics struct {
+	TotalCount         int64                `json:"totalCount"`
+	ClassDistribution  []ImageClassStat     `json:"classDistribution"`  // 按班级分布
+	CourseDistribution []ImageCourseStat    `json:"courseDistribution"` // 按课程分布
+	FormatDistribution map[string]int       `json:"formatDistribution"` // 格式分布
+}
+
+// VideoClassStat 视频班级统计
+type VideoClassStat struct {
+	ClassName       string  `json:"className"`
+	VideoCount      int64   `json:"videoCount"`
+	TotalDuration   int64   `json:"totalDuration"`
+	AverageDuration float64 `json:"averageDuration"`
+}
+
+// VideoCourseStat 视频课程统计
+type VideoCourseStat struct {
+	CourseName      string  `json:"courseName"`
+	VideoCount      int64   `json:"videoCount"`
+	TotalDuration   int64   `json:"totalDuration"`
+	AverageDuration float64 `json:"averageDuration"`
+}
+
+// ImageClassStat 图片班级统计
+type ImageClassStat struct {
+	ClassName  string `json:"className"`
+	ImageCount int64  `json:"imageCount"`
+}
+
+// ImageCourseStat 图片课程统计
+type ImageCourseStat struct {
+	CourseName string `json:"courseName"`
+	ImageCount int64  `json:"imageCount"`
+}
+
+// DurationRangeStat 时长范围统计
+type DurationRangeStat struct {
+	Range string `json:"range"`
+	Count int64  `json:"count"`
+}

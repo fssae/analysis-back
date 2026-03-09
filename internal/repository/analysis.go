@@ -148,3 +148,8 @@ func (r *AnalysisRepository) GetClassAnalysisList(
 	}
 	return result, int(total), nil
 }
+
+// GetVideoImageStats 获取视频和图片统计
+func (r *AnalysisRepository) GetVideoImageStats(ctx context.Context) (*domain.VideoImageStatsResponse, error) {
+	return r.analysisDAO.GetVideoImageStats(ctx)
+}
