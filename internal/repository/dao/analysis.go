@@ -668,13 +668,30 @@ func (dao *AnalysisDAO) getVideoStats(ctx context.Context) ([]domain.VideoStat, 
 
 	var videoStats []domain.VideoStat
 	for cursor.Next(ctx) {
-		var stat domain.VideoStat
-		if err := cursor.Decode(&stat); err == nil {
-			// 保留整数
-			stat.AverageFocusScore = math.Round(stat.AverageFocusScore * 100)
-			stat.AverageFatigueScore = math.Round(stat.AverageFatigueScore * 100)
-			videoStats = append(videoStats, stat)
+		var rawData struct {
+			FileName            string         `bson:"fileName"`
+			ClassName           string         `bson:"className"`
+			CourseName          string         `bson:"courseName"`
+			StudentCount        int            `bson:"studentCount"`
+			AnalysisCount       int            `bson:"analysisCount"`
+			AverageFocusScore   float64        `bson:"averageFocusScore"`
+			AverageFatigueScore float64        `bson:"averageFatigueScore"`
+			EmotionDistribution map[string]int `bson:"emotionDistribution"`
 		}
+		if err := cursor.Decode(&rawData); err != nil {
+			continue
+		}
+		stat := domain.VideoStat{
+			FileName:            rawData.FileName,
+			ClassName:           rawData.ClassName,
+			CourseName:          rawData.CourseName,
+			StudentCount:        rawData.StudentCount,
+			AnalysisCount:       rawData.AnalysisCount,
+			AverageFocusScore:   math.Round(rawData.AverageFocusScore * 100),
+			AverageFatigueScore: math.Round(rawData.AverageFatigueScore * 100),
+			EmotionDistribution: rawData.EmotionDistribution,
+		}
+		videoStats = append(videoStats, stat)
 	}
 
 	return videoStats, nil
@@ -729,13 +746,30 @@ func (dao *AnalysisDAO) getImageStats(ctx context.Context) ([]domain.ImageStat, 
 
 	var imageStats []domain.ImageStat
 	for cursor.Next(ctx) {
-		var stat domain.ImageStat
-		if err := cursor.Decode(&stat); err == nil {
-			// 保留整数
-			stat.AverageFocusScore = math.Round(stat.AverageFocusScore * 100)
-			stat.AverageFatigueScore = math.Round(stat.AverageFatigueScore * 100)
-			imageStats = append(imageStats, stat)
+		var rawData struct {
+			FileName            string         `bson:"fileName"`
+			ClassName           string         `bson:"className"`
+			CourseName          string         `bson:"courseName"`
+			StudentCount        int            `bson:"studentCount"`
+			AnalysisCount       int            `bson:"analysisCount"`
+			AverageFocusScore   float64        `bson:"averageFocusScore"`
+			AverageFatigueScore float64        `bson:"averageFatigueScore"`
+			EmotionDistribution map[string]int `bson:"emotionDistribution"`
 		}
+		if err := cursor.Decode(&rawData); err != nil {
+			continue
+		}
+		stat := domain.ImageStat{
+			FileName:            rawData.FileName,
+			ClassName:           rawData.ClassName,
+			CourseName:          rawData.CourseName,
+			StudentCount:        rawData.StudentCount,
+			AnalysisCount:       rawData.AnalysisCount,
+			AverageFocusScore:   math.Round(rawData.AverageFocusScore * 100),
+			AverageFatigueScore: math.Round(rawData.AverageFatigueScore * 100),
+			EmotionDistribution: rawData.EmotionDistribution,
+		}
+		imageStats = append(imageStats, stat)
 	}
 
 	return imageStats, nil
