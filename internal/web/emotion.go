@@ -2,6 +2,7 @@ package web
 
 import (
 	"classroom-analysis/internal/domain"
+	"classroom-analysis/internal/util"
 	"net/http"
 	"sort"
 
@@ -240,7 +241,7 @@ func buildEmotionHeatmap(analysis *domain.Analysis) *domain.EmotionHeatmapRespon
 	}
 
 	return &domain.EmotionHeatmapResponse{
-		Timestamps:    []string{analysis.Timestamp.Format("15:04")},
+		Timestamps:    []string{util.FormatBeijingTime(analysis.Timestamp, "15:04")},
 		Emotions:      emotionLabels,
 		Data:          data,
 		TotalStudents: len(analysis.Faces),

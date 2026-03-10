@@ -3,6 +3,7 @@ package repository
 import (
 	"classroom-analysis/internal/domain"
 	"classroom-analysis/internal/repository/dao"
+	"classroom-analysis/internal/util"
 	"context"
 	"strings"
 	"time"
@@ -140,7 +141,7 @@ func (r *AnalysisRepository) GetClassAnalysisList(
 			CourseName: a.CourseName,
 			FileName:   a.FileName,
 			ClassName:  className,
-			Date:       a.Timestamp.Format("2006-01-02 15:04"),
+			Date:       util.FormatBeijingTime(a.Timestamp, "2006-01-02 15:04"),
 			FocusAvg:   focusAvg,
 			ResultUrl:  a.ResultUrl,
 		}

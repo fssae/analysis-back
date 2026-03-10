@@ -3,6 +3,7 @@ package service
 import (
 	"classroom-analysis/internal/domain"
 	"classroom-analysis/internal/repository"
+	"classroom-analysis/internal/util"
 	"context"
 	"errors"
 	"fmt"
@@ -208,7 +209,7 @@ func (s *TeacherService) GetStudents(ctx context.Context) ([]map[string]interfac
 		lastFocus, err := s.studentFocusRepo.FindByStudentId(ctx, student.Id, 1)
 		var lastAnalysis string
 		if err == nil && len(lastFocus) > 0 {
-			lastAnalysis = lastFocus[0].Date.Format("2006-01-02")
+			lastAnalysis = util.FormatBeijingTime(lastFocus[0].Date, "2006-01-02")
 		}
 
 		result = append(result, map[string]interface{}{
@@ -240,7 +241,7 @@ func (s *TeacherService) FindStudents(ctx context.Context, name string) ([]map[s
 		lastFocus, err := s.studentFocusRepo.FindByStudentId(ctx, student.Id, 1)
 		var lastAnalysis string
 		if err == nil && len(lastFocus) > 0 {
-			lastAnalysis = lastFocus[0].Date.Format("2006-01-02")
+			lastAnalysis = util.FormatBeijingTime(lastFocus[0].Date, "2006-01-02")
 		}
 
 		result = append(result, map[string]interface{}{

@@ -2,6 +2,7 @@ package web
 
 import (
 	"classroom-analysis/internal/domain"
+	"classroom-analysis/internal/util"
 	"fmt"
 	"math"
 	"math/rand"
@@ -98,11 +99,11 @@ func (h *TeacherHandler) GetReportList(c *gin.Context) {
 	for _, analysis := range analyses {
 		// 计算平均专注度
 		avgFocus := calculateAvgFocus(analysis.Faces)
-		
+
 		reportList = append(reportList, domain.ReportListItem{
 			Id:           analysis.Id.Hex(),
 			Type:         analysis.FileType,
-			Date:         analysis.Timestamp.Format("2006-01-02 15:04"),
+			Date:         util.FormatBeijingTime(analysis.Timestamp, "2006-01-02 15:04"),
 			CourseName:   analysis.CourseName,
 			ClassName:    analysis.ClassName,
 			AvgFocus:     avgFocus,
@@ -124,12 +125,12 @@ func (h *TeacherHandler) GetReportList(c *gin.Context) {
 func buildReportDetail(analysis *domain.Analysis) *domain.ReportDetail {
 	faces := analysis.Faces
 	studentCount := len(faces)
-	
+
 	if studentCount == 0 {
 		return &domain.ReportDetail{
 			Id:         analysis.Id.Hex(),
 			Type:       analysis.FileType,
-			Date:       analysis.Timestamp.Format("2006-01-02 15:04"),
+			Date:       util.FormatBeijingTime(analysis.Timestamp, "2006-01-02 15:04"),
 			CourseName: analysis.CourseName,
 			ClassName:  analysis.ClassName,
 		}
@@ -141,11 +142,11 @@ func buildReportDetail(analysis *domain.Analysis) *domain.ReportDetail {
 	minFocus = 1
 	maxFocusIndex := 0
 	minFocusIndex := 0
-	
+
 	for i, face := range faces {
 		focus := face.FocusScore
 		totalFocus += focus
-		
+
 		if focus > maxFocus {
 			maxFocus = focus
 			maxFocusIndex = i
@@ -155,31 +156,31 @@ func buildReportDetail(analysis *domain.Analysis) *domain.ReportDetail {
 			minFocusIndex = i
 		}
 	}
-	
+
 	avgFocus := totalFocus / float64(studentCount)
-	
+
 	// 生成模拟的时间序列数据（用于视频分析）
 	focusData := generateFocusData(avgFocus, analysis.FileType)
-	
+
 	// 生成专注度分布
 	distributionData := generateDistributionData(faces)
-	
+
 	// 生成学生排名
 	studentRanking := generateStudentRanking(faces)
-	
+
 	// 生成详细数据
 	detailedData := generateDetailedData(faces, analysis.Timestamp)
-	
+
 	// 生成教学建议
 	suggestions := generateSuggestions(avgFocus, faces)
-	
+
 	// 计算专注度趋势（模拟）
 	focusTrend := calculateFocusTrend(focusData)
-	
+
 	return &domain.ReportDetail{
 		Id:               analysis.Id.Hex(),
 		Type:             analysis.FileType,
-		Date:             analysis.Timestamp.Format("2006-01-02 15:04"),
+		Date:             util.FormatBeijingTime(analysis.Timestamp, "2006-01-02 15:04"),
 		CourseName:       analysis.CourseName,
 		ClassName:        analysis.ClassName,
 		AvgFocus:         round(avgFocus * 100),
@@ -216,17 +217,17 @@ func generateFocusData(avgFocus float64, analysisType string) []float64 {
 	if analysisType == "image" {
 		return []float64{round(avgFocus * 100)}
 	}
-	
+
 	// 视频分析：生成模拟的时间序列（10-30个点）
 	points := 15 + rand.Intn(16) // 15-30个点
 	data := make([]float64, points)
-	
+
 	baseValue := avgFocus * 100
 	for i := 0; i < points; i++ {
 		// 添加随机波动，模拟课堂专注度变化
 		variation := (rand.Float64() - 0.5) * 20 // ±10%的波动
-		trend := float64(i) * 0.5 // 轻微下降趋势
-		
+		trend := float64(i) * 0.5                // 轻微下降趋势
+
 		value := baseValue + variation - trend
 		if value < 0 {
 			value = 0
@@ -236,7 +237,7 @@ func generateFocusData(avgFocus float64, analysisType string) []float64 {
 		}
 		data[i] = round(value)
 	}
-	
+
 	return data
 }
 
@@ -246,7 +247,7 @@ func generateDistributionData(faces []domain.FaceAnalysis) []domain.ReportDistri
 	goodFocus := 0   // 80-90%
 	normalFocus := 0 // 70-80%
 	poorFocus := 0   // <70%
-	
+
 	for _, face := range faces {
 		focus := face.FocusScore * 100
 		switch {
@@ -260,7 +261,7 @@ func generateDistributionData(faces []domain.FaceAnalysis) []domain.ReportDistri
 			poorFocus++
 		}
 	}
-	
+
 	return []domain.ReportDistribution{
 		{Name: "高度专注 (90%+)", Value: highFocus},
 		{Name: "良好专注 (80-90%)", Value: goodFocus},
@@ -271,8 +272,8 @@ func generateDistributionData(faces []domain.FaceAnalysis) []domain.ReportDistri
 
 // generateStudentRanking 生成学生排名
 type studentFocus struct {
-	index  int
-	focus  float64
+	index int
+	focus float64
 }
 
 func generateStudentRanking(faces []domain.FaceAnalysis) []domain.ReportStudentRanking {
@@ -280,12 +281,12 @@ func generateStudentRanking(faces []domain.FaceAnalysis) []domain.ReportStudentR
 	for i, face := range faces {
 		students[i] = studentFocus{index: i + 1, focus: face.FocusScore}
 	}
-	
+
 	// 按专注度排序
 	sort.Slice(students, func(i, j int) bool {
 		return students[i].focus > students[j].focus
 	})
-	
+
 	// 生成排名数据
 	ranking := make([]domain.ReportStudentRanking, len(students))
 	for i, s := range students {
@@ -297,23 +298,23 @@ func generateStudentRanking(faces []domain.FaceAnalysis) []domain.ReportStudentR
 			Trend: trend,
 		}
 	}
-	
+
 	return ranking
 }
 
 // generateDetailedData 生成详细数据
 func generateDetailedData(faces []domain.FaceAnalysis, timestamp time.Time) []domain.ReportDetailedData {
 	data := make([]domain.ReportDetailedData, 0)
-	
+
 	// 每5分钟一个时间点
 	intervals := 6
 	for i := 0; i < intervals; i++ {
 		timeStr := timestamp.Add(time.Duration(i*5) * time.Minute).Format("15:04")
-		
+
 		// 计算该时间点的专注学生数
 		focusedCount := 0
 		distractedCount := 0
-		
+
 		for _, face := range faces {
 			if face.FocusScore >= 0.7 {
 				focusedCount++
@@ -321,9 +322,9 @@ func generateDetailedData(faces []domain.FaceAnalysis, timestamp time.Time) []do
 				distractedCount++
 			}
 		}
-		
+
 		avgFocus := calculateAvgFocus(faces)
-		
+
 		data = append(data, domain.ReportDetailedData{
 			Time:            timeStr,
 			Focus:           int(avgFocus),
@@ -332,14 +333,14 @@ func generateDetailedData(faces []domain.FaceAnalysis, timestamp time.Time) []do
 			Notes:           "",
 		})
 	}
-	
+
 	return data
 }
 
 // generateSuggestions 生成教学建议
 func generateSuggestions(avgFocus float64, faces []domain.FaceAnalysis) domain.ReportSuggestions {
 	focusPercent := avgFocus * 100
-	
+
 	// 整体表现评价
 	var overall string
 	switch {
@@ -352,25 +353,25 @@ func generateSuggestions(avgFocus float64, faces []domain.FaceAnalysis) domain.R
 	default:
 		overall = "本节课学生整体专注度较低，建议反思教学内容和方法，增加互动环节。"
 	}
-	
+
 	// 改进建议
 	improvements := []string{
 		"增加课堂互动环节，提高学生参与度",
 		"适时调整教学节奏，避免长时间单一讲解",
 		"关注低专注度学生，及时了解原因",
 	}
-	
+
 	if focusPercent < 75 {
 		improvements = append(improvements, "考虑使用多媒体教学手段，增强课堂趣味性")
 	}
-	
+
 	// 教学方法建议
 	methods := []string{
 		"采用提问式教学，引导学生主动思考",
 		"小组讨论与个别指导相结合",
 		"适时进行课堂小测验，检验学习效果",
 	}
-	
+
 	// 需要关注的学生
 	attentionStudents := make([]domain.ReportAttentionStudent, 0)
 	for i, face := range faces {
@@ -382,7 +383,7 @@ func generateSuggestions(avgFocus float64, faces []domain.FaceAnalysis) domain.R
 			})
 		}
 	}
-	
+
 	// 限制关注学生数量，只显示最低的5个
 	if len(attentionStudents) > 5 {
 		sort.Slice(attentionStudents, func(i, j int) bool {
@@ -390,7 +391,7 @@ func generateSuggestions(avgFocus float64, faces []domain.FaceAnalysis) domain.R
 		})
 		attentionStudents = attentionStudents[:5]
 	}
-	
+
 	return domain.ReportSuggestions{
 		Overall:           overall,
 		Improvements:      improvements,
@@ -404,10 +405,10 @@ func calculateFocusTrend(data []float64) float64 {
 	if len(data) < 2 {
 		return 0
 	}
-	
+
 	firstHalf := data[:len(data)/2]
 	secondHalf := data[len(data)/2:]
-	
+
 	var firstAvg, secondAvg float64
 	for _, v := range firstHalf {
 		firstAvg += v
@@ -415,10 +416,10 @@ func calculateFocusTrend(data []float64) float64 {
 	for _, v := range secondHalf {
 		secondAvg += v
 	}
-	
+
 	firstAvg /= float64(len(firstHalf))
 	secondAvg /= float64(len(secondHalf))
-	
+
 	return round(secondAvg - firstAvg)
 }
 
