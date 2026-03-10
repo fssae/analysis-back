@@ -288,8 +288,8 @@ func (s *TeacherService) GetSettings(ctx context.Context, teacherId string) (*do
 }
 
 // UpdateSettings 更新教师设置
-func (s *TeacherService) UpdateSettings(ctx context.Context, teacherId string, req interface{}) error {
-	return s.teacherRepo.SaveSettings(ctx, teacherId, req)
+func (s *TeacherService) UpdateSettings(ctx context.Context, teacherId string, settings domain.SettingsData) error {
+	return s.teacherRepo.SaveSettings(ctx, teacherId, settings)
 }
 
 // UpdateTeacherEmail 更新教师邮箱

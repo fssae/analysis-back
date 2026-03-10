@@ -81,6 +81,6 @@ func (r *TeacherRepository) GetSettings(ctx context.Context, teacherId string) (
 }
 
 // SaveSettings 保存教师设置
-func (r *TeacherRepository) SaveSettings(ctx context.Context, teacherId string, settings interface{}) error {
+func (r *TeacherRepository) SaveSettings(ctx context.Context, teacherId string, settings domain.SettingsData) error {
 	return r.teacherDAO.SaveSettings(ctx, teacherId, settings)
 }

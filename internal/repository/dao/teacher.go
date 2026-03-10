@@ -70,8 +70,8 @@ func (dao *TeacherDAO) GetSettings(ctx context.Context, teacherId string) (*doma
 
 	// 定义一个与数据库结构匹配的结构体（嵌套在 settings 字段下）
 	var doc struct {
-		TeacherId   string    `bson:"teacherId"`
-		Settings    struct {
+		TeacherId string `bson:"teacherId"`
+		Settings  struct {
 			UISettings           domain.UISettings           `bson:"uisettings"`
 			AnalysisSettings     domain.AnalysisSettings     `bson:"analysissettings"`
 			NotificationSettings domain.NotificationSettings `bson:"notificationsettings"`
@@ -99,32 +99,35 @@ func (dao *TeacherDAO) GetSettings(ctx context.Context, teacherId string) (*doma
 }
 
 // SaveSettings 保存教师设置
-func (dao *TeacherDAO) SaveSettings(ctx context.Context, teacherId string, settings interface{}) error {
+func (dao *TeacherDAO) SaveSettings(ctx context.Context, teacherId string, settings domain.SettingsData) error {
 	settingsColl := dao.collection.Database().Collection("teacher_settings")
-
-	// 将 settings 转换为 bson.M 以便使用小写字段名
-	var settingsDoc bson.M
-	settingsBytes, err := bson.Marshal(settings)
-	if err != nil {
-		return err
-	}
-	err = bson.Unmarshal(settingsBytes, &settingsDoc)
-	if err != nil {
-		return err
-	}
 
 	// 构建嵌套的 settings 文档（与数据库现有结构一致）
 	updateDoc := bson.M{
 		"teacherId": teacherId,
 		"settings": bson.M{
-			"uisettings":           settingsDoc["uiSettings"],
-			"analysissettings":     settingsDoc["analysisSettings"],
-			"notificationsettings": settingsDoc["notificationSettings"],
+			"uisettings": bson.M{
+				"theme":            settings.UISettings.Theme,
+				"sidebarCollapsed": settings.UISettings.SidebarCollapsed,
+				"enableAnimation":  settings.UISettings.EnableAnimation,
+			},
+			"analysissettings": bson.M{
+				"defaultCourse":    settings.AnalysisSettings.DefaultCourse,
+				"defaultClass":     settings.AnalysisSettings.DefaultClass,
+				"fatigueThreshold": settings.AnalysisSettings.FatigueThreshold,
+				"focusThreshold":   settings.AnalysisSettings.FocusThreshold,
+			},
+			"notificationsettings": bson.M{
+				"enabled":           settings.NotificationSettings.Enabled,
+				"fatigueAlert":      settings.NotificationSettings.FatigueAlert,
+				"focusAlert":        settings.NotificationSettings.FocusAlert,
+				"emailNotification": settings.NotificationSettings.EmailNotification,
+			},
 		},
 		"updatedAt": time.Now(),
 	}
 
-	_, err = settingsColl.UpdateOne(
+	_, err := settingsColl.UpdateOne(
 		ctx,
 		bson.M{"teacherId": teacherId},
 		bson.M{

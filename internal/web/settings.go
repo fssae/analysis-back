@@ -88,8 +88,14 @@ func (h *TeacherHandler) UpdateSettings(c *gin.Context) {
 		return
 	}
 
-	// 更新设置
-	err := h.teacherService.UpdateSettings(c.Request.Context(), teacherId, req)
+	// 更新设置 - 传递具体字段而不是整个结构体
+	settingsData := domain.SettingsData{
+		UISettings:           req.UISettings,
+		AnalysisSettings:     req.AnalysisSettings,
+		NotificationSettings: req.NotificationSettings,
+	}
+
+	err := h.teacherService.UpdateSettings(c.Request.Context(), teacherId, settingsData)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code": 500,
