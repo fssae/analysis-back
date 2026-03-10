@@ -2,9 +2,11 @@ package main
 
 import (
 	"classroom-analysis/internal/ioc"
+	"classroom-analysis/internal/util"
 	"classroom-analysis/internal/web"
-	"github.com/robfig/cron/v3"
 	"log"
+
+	"github.com/robfig/cron/v3"
 
 	"github.com/gin-gonic/gin"
 	"github.com/minio/minio-go/v7"
@@ -24,7 +26,7 @@ type App struct {
 
 func setupEnvironment() {
 	//测试
-	ioc.TimezoneInit()
+	util.TimezoneInit()
 	//初始化viper
 	ioc.InitViper()
 	//系统存活性监控

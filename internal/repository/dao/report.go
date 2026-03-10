@@ -2,8 +2,8 @@ package dao
 
 import (
 	"classroom-analysis/internal/domain"
+	"classroom-analysis/internal/util"
 	"context"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -23,7 +23,7 @@ func NewReportDAO(db *mongo.Database) *ReportDAO {
 
 // Create 创建报告
 func (dao *ReportDAO) Create(ctx context.Context, report *domain.Report) error {
-	report.CreatedAt = time.Now()
+	report.CreatedAt = util.GetBeijingTime()
 	result, err := dao.collection.InsertOne(ctx, report)
 	if err != nil {
 		return err

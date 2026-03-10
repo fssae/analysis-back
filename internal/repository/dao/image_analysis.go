@@ -2,8 +2,8 @@ package dao
 
 import (
 	"classroom-analysis/internal/domain"
+	"classroom-analysis/internal/util"
 	"context"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -22,7 +22,7 @@ func NewImageAnalysisDAO(db *mongo.Database) *ImageAnalysisDAO {
 
 // Create 创建图片分析
 func (dao *ImageAnalysisDAO) Create(ctx context.Context, imageAnalysis *domain.ImageAnalysis) error {
-	imageAnalysis.CreatedAt = time.Now()
+	imageAnalysis.CreatedAt = util.GetBeijingTime()
 	result, err := dao.collection.InsertOne(ctx, imageAnalysis)
 	if err != nil {
 		return err

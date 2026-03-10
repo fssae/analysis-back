@@ -2,6 +2,7 @@ package dao
 
 import (
 	"classroom-analysis/internal/domain"
+	"classroom-analysis/internal/util"
 	"context"
 	"errors"
 	"math"
@@ -41,7 +42,7 @@ func (dao *AnalysisDAO) FindByTeacherId(ctx context.Context, limit int64) ([]*do
 
 // Create 创建分析记录
 func (dao *AnalysisDAO) Create(ctx context.Context, analysis *domain.Analysis) error {
-	analysis.Timestamp = time.Now()
+	analysis.Timestamp = util.GetBeijingTime()
 	// 复用 InsertOne
 	res, err := dao.InsertOne(ctx, analysis)
 	if err != nil {
@@ -67,7 +68,7 @@ func (dao *AnalysisDAO) FindByImageId(ctx context.Context, imageId primitive.Obj
 
 // Update 更新分析记录
 func (dao *AnalysisDAO) Update(ctx context.Context, analysis *domain.Analysis) error {
-	analysis.Timestamp = time.Now()
+	analysis.Timestamp = util.GetBeijingTime()
 	_, err := dao.UpdateOne(ctx, bson.M{"_id": analysis.Id}, bson.M{"$set": analysis})
 	return err
 }
@@ -417,7 +418,7 @@ func (dao *AnalysisDAO) UpdateStatus(update *domain.UpdateStatus) error {
 			"resultUrl":           update.ResultUrl,
 			"errorMsg":            update.ErrorMsg,
 			"confidenceThreshold": update.ConfidenceThreshold,
-			"updatedAt":           time.Now(),
+			"updatedAt":           util.GetBeijingTime(),
 		},
 	}
 	opts := options.Update().SetUpsert(true)
@@ -848,7 +849,7 @@ func (dao *AnalysisDAO) getStudentGlobalStats(ctx context.Context) ([]domain.Stu
 // getTrendData 获取趋势数据
 func (dao *AnalysisDAO) getTrendData(ctx context.Context) ([]domain.EmotionTrendPoint, []domain.FocusTrendPoint, []domain.FatigueTrendPoint, error) {
 	// 获取最近30天的数据
-	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
+	thirtyDaysAgo := util.GetBeijingTime().AddDate(0, 0, -30)
 
 	// 情绪趋势
 	emotionPipeline := mongo.Pipeline{

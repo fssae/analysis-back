@@ -2,8 +2,8 @@ package dao
 
 import (
 	"classroom-analysis/internal/domain"
+	"classroom-analysis/internal/util"
 	"context"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -24,8 +24,8 @@ func NewAnalysisTaskDAO(db *mongo.Database) *AnalysisTaskDAO {
 
 // Create 创建分析任务
 func (dao *AnalysisTaskDAO) Create(ctx context.Context, task *domain.AnalysisTask) error {
-	task.CreatedAt = time.Now()
-	task.UpdatedAt = time.Now()
+	task.CreatedAt = util.GetBeijingTime()
+	task.UpdatedAt = util.GetBeijingTime()
 	result, err := dao.collection.InsertOne(ctx, task)
 	if err != nil {
 		return err
@@ -55,7 +55,7 @@ func (dao *AnalysisTaskDAO) FindByTaskId(ctx context.Context, taskId string) ([]
 
 // Update 更新任务
 func (dao *AnalysisTaskDAO) Update(ctx context.Context, task *domain.AnalysisTask) error {
-	task.UpdatedAt = time.Now()
+	task.UpdatedAt = util.GetBeijingTime()
 	_, err := dao.collection.UpdateOne(
 		ctx,
 		bson.M{"_id": task.Id},
@@ -72,7 +72,7 @@ func (dao *AnalysisTaskDAO) UpdateStatus(ctx context.Context, taskId string, sta
 		bson.M{"$set": bson.M{
 			"status":    status,
 			"progress":  progress,
-			"updatedAt": time.Now(),
+			"updatedAt": util.GetBeijingTime(),
 		}},
 	)
 	return err

@@ -2,9 +2,9 @@ package dao
 
 import (
 	"classroom-analysis/internal/domain"
+	"classroom-analysis/internal/util"
 	"context"
 	"errors"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -129,7 +129,7 @@ func (dao *EmailDao) EmailUpdate(teacherId primitive.ObjectID, imageId string, u
 		Confidence: confidence,
 		Url:        url,
 		TaskId:     imageId,
-		Time:       time.Now(),
+		Time:       util.GetBeijingTime(),
 	}
 	filter := bson.M{
 		"teacherId": teacherId,
@@ -142,8 +142,8 @@ func (dao *EmailDao) EmailUpdate(teacherId primitive.ObjectID, imageId string, u
 			"_id":       primitive.NewObjectID(),
 		},
 		"$set": bson.M{
-			"lastUpdated": time.Now(),
-			"date":        time.Now(),
+			"lastUpdated": util.GetBeijingTime(),
+			"date":        util.GetBeijingTime(),
 		},
 	}
 	opts := options.Update().SetUpsert(true)

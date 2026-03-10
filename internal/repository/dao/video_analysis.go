@@ -2,8 +2,8 @@ package dao
 
 import (
 	"classroom-analysis/internal/domain"
+	"classroom-analysis/internal/util"
 	"context"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -22,7 +22,7 @@ func NewVideoAnalysisDAO(db *mongo.Database) *VideoAnalysisDAO {
 
 // Create 创建视频分析
 func (dao *VideoAnalysisDAO) Create(ctx context.Context, videoAnalysis *domain.VideoAnalysis) error {
-	videoAnalysis.CreatedAt = time.Now()
+	videoAnalysis.CreatedAt = util.GetBeijingTime()
 	result, err := dao.collection.InsertOne(ctx, videoAnalysis)
 	if err != nil {
 		return err
@@ -40,7 +40,7 @@ func (dao *VideoAnalysisDAO) FindByAnalysisId(ctx context.Context, analysisId pr
 		// 如果在 video_analyses 集合中找到数据，直接返回
 		return &videoAnalysis, nil
 	}
-	
+
 	// 如果在 video_analyses 集合中未找到，尝试从 status 集合查找
 	// 这是为了兼容旧的数据结构
 	statusCollection := dao.collection.Database().Collection("status")
@@ -53,23 +53,23 @@ func (dao *VideoAnalysisDAO) FindByAnalysisId(ctx context.Context, analysisId pr
 		}
 		return nil, err2
 	}
-	
+
 	// 如果在 status 集合中找到数据，创建一个基本的 VideoAnalysis 对象
 	videoAnalysis = domain.VideoAnalysis{
 		AnalysisId: analysisId,
-		Duration:   0, // 默认时长，可能需要从其他地方获取
-		CreatedAt:  time.Now(), // 使用当前时间，或者从 statusRecord 中提取时间
+		Duration:   0,                     // 默认时长，可能需要从其他地方获取
+		CreatedAt:  util.GetBeijingTime(), // 使用当前时间，或者从 statusRecord 中提取时间
 		FocusTrend: []domain.FocusPoint{}, // 空的焦点趋势，如果有数据可以从 status 中解析
 	}
-	
+
 	// 如果 statusRecord 中有时间信息，使用它
 	if updatedAt, ok := statusRecord["updatedAt"].(primitive.DateTime); ok {
 		videoAnalysis.CreatedAt = updatedAt.Time()
 	}
-	
+
 	// 如果有 duration 信息，也可以设置
 	// 这里可以根据实际需求进一步完善
-	
+
 	return &videoAnalysis, nil
 }
 

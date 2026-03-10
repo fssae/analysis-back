@@ -2,6 +2,7 @@ package dao
 
 import (
 	"classroom-analysis/internal/domain"
+	"classroom-analysis/internal/util"
 	"context"
 	"time"
 
@@ -23,8 +24,8 @@ func NewTeacherDAO(db *mongo.Database) *TeacherDAO {
 
 // Create 创建教师
 func (dao *TeacherDAO) Create(ctx context.Context, teacher *domain.Teacher) error {
-	teacher.CreatedAt = time.Now()
-	teacher.UpdatedAt = time.Now()
+	teacher.CreatedAt = util.GetBeijingTime()
+	teacher.UpdatedAt = util.GetBeijingTime()
 	result, err := dao.collection.InsertOne(ctx, teacher)
 	if err != nil {
 		return err
@@ -55,7 +56,7 @@ func (dao *TeacherDAO) FindById(ctx context.Context, id primitive.ObjectID) (*do
 
 // Update 更新教师信息
 func (dao *TeacherDAO) Update(ctx context.Context, teacher *domain.Teacher) error {
-	teacher.UpdatedAt = time.Now()
+	teacher.UpdatedAt = util.GetBeijingTime()
 	_, err := dao.collection.UpdateOne(
 		ctx,
 		bson.M{"_id": teacher.Id},
@@ -124,7 +125,7 @@ func (dao *TeacherDAO) SaveSettings(ctx context.Context, teacherId string, setti
 				"emailNotification": settings.NotificationSettings.EmailNotification,
 			},
 		},
-		"updatedAt": time.Now(),
+		"updatedAt": util.GetBeijingTime(),
 	}
 
 	_, err := settingsColl.UpdateOne(
@@ -133,7 +134,7 @@ func (dao *TeacherDAO) SaveSettings(ctx context.Context, teacherId string, setti
 		bson.M{
 			"$set": updateDoc,
 			"$setOnInsert": bson.M{
-				"createdAt": time.Now(),
+				"createdAt": util.GetBeijingTime(),
 			},
 		},
 		options.Update().SetUpsert(true),

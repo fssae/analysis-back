@@ -2,6 +2,7 @@ package dao
 
 import (
 	"classroom-analysis/internal/domain"
+	"classroom-analysis/internal/util"
 	"context"
 	"time"
 
@@ -139,7 +140,7 @@ func (dao *StudentFocusDAO) GetAverageFocusScores(ctx context.Context) ([]float6
 
 // Create 创建学生专注度记录
 func (dao *StudentFocusDAO) Create(ctx context.Context, studentFocus *domain.StudentFocus) error {
-	studentFocus.CreatedAt = time.Now()
+	studentFocus.CreatedAt = util.GetBeijingTime()
 	result, err := dao.collection.InsertOne(ctx, studentFocus)
 	if err != nil {
 		return err
