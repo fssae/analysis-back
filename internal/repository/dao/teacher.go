@@ -68,14 +68,16 @@ func (dao *TeacherDAO) Update(ctx context.Context, teacher *domain.Teacher) erro
 func (dao *TeacherDAO) GetSettings(ctx context.Context, teacherId string) (*domain.SettingsData, error) {
 	settingsColl := dao.collection.Database().Collection("teacher_settings")
 
-	// 定义一个与数据库结构匹配的结构体
+	// 定义一个与数据库结构匹配的结构体（嵌套在 settings 字段下）
 	var doc struct {
-		TeacherId            string    `bson:"teacherId"`
-		UISettings           domain.UISettings           `bson:"uisettings"`
-		AnalysisSettings     domain.AnalysisSettings     `bson:"analysissettings"`
-		NotificationSettings domain.NotificationSettings `bson:"notificationsettings"`
-		CreatedAt            time.Time `bson:"createdAt"`
-		UpdatedAt            time.Time `bson:"updatedAt"`
+		TeacherId   string    `bson:"teacherId"`
+		Settings    struct {
+			UISettings           domain.UISettings           `bson:"uisettings"`
+			AnalysisSettings     domain.AnalysisSettings     `bson:"analysissettings"`
+			NotificationSettings domain.NotificationSettings `bson:"notificationsettings"`
+		} `bson:"settings"`
+		CreatedAt time.Time `bson:"createdAt"`
+		UpdatedAt time.Time `bson:"updatedAt"`
 	}
 
 	err := settingsColl.FindOne(ctx, bson.M{"teacherId": teacherId}).Decode(&doc)
@@ -86,9 +88,9 @@ func (dao *TeacherDAO) GetSettings(ctx context.Context, teacherId string) (*doma
 	// 转换为 domain.SettingsData
 	settings := &domain.SettingsData{
 		TeacherId:            doc.TeacherId,
-		UISettings:           doc.UISettings,
-		AnalysisSettings:     doc.AnalysisSettings,
-		NotificationSettings: doc.NotificationSettings,
+		UISettings:           doc.Settings.UISettings,
+		AnalysisSettings:     doc.Settings.AnalysisSettings,
+		NotificationSettings: doc.Settings.NotificationSettings,
 		CreatedAt:            doc.CreatedAt,
 		UpdatedAt:            doc.UpdatedAt,
 	}
@@ -111,13 +113,15 @@ func (dao *TeacherDAO) SaveSettings(ctx context.Context, teacherId string, setti
 		return err
 	}
 
-	// 转换为小写字段名
+	// 构建嵌套的 settings 文档（与数据库现有结构一致）
 	updateDoc := bson.M{
-		"teacherId":            teacherId,
-		"uisettings":           settingsDoc["uiSettings"],
-		"analysissettings":     settingsDoc["analysisSettings"],
-		"notificationsettings": settingsDoc["notificationSettings"],
-		"updatedAt":            time.Now(),
+		"teacherId": teacherId,
+		"settings": bson.M{
+			"uisettings":           settingsDoc["uiSettings"],
+			"analysissettings":     settingsDoc["analysisSettings"],
+			"notificationsettings": settingsDoc["notificationSettings"],
+		},
+		"updatedAt": time.Now(),
 	}
 
 	_, err = settingsColl.UpdateOne(
