@@ -67,27 +67,64 @@ func (dao *TeacherDAO) Update(ctx context.Context, teacher *domain.Teacher) erro
 // GetSettings 获取教师设置
 func (dao *TeacherDAO) GetSettings(ctx context.Context, teacherId string) (*domain.SettingsData, error) {
 	settingsColl := dao.collection.Database().Collection("teacher_settings")
-	var settings domain.SettingsData
-	err := settingsColl.FindOne(ctx, bson.M{"teacherId": teacherId}).Decode(&settings)
+
+	// 定义一个与数据库结构匹配的结构体
+	var doc struct {
+		TeacherId            string    `bson:"teacherId"`
+		UISettings           domain.UISettings           `bson:"uisettings"`
+		AnalysisSettings     domain.AnalysisSettings     `bson:"analysissettings"`
+		NotificationSettings domain.NotificationSettings `bson:"notificationsettings"`
+		CreatedAt            time.Time `bson:"createdAt"`
+		UpdatedAt            time.Time `bson:"updatedAt"`
+	}
+
+	err := settingsColl.FindOne(ctx, bson.M{"teacherId": teacherId}).Decode(&doc)
 	if err != nil {
 		return nil, err
 	}
-	return &settings, nil
+
+	// 转换为 domain.SettingsData
+	settings := &domain.SettingsData{
+		TeacherId:            doc.TeacherId,
+		UISettings:           doc.UISettings,
+		AnalysisSettings:     doc.AnalysisSettings,
+		NotificationSettings: doc.NotificationSettings,
+		CreatedAt:            doc.CreatedAt,
+		UpdatedAt:            doc.UpdatedAt,
+	}
+
+	return settings, nil
 }
 
 // SaveSettings 保存教师设置
 func (dao *TeacherDAO) SaveSettings(ctx context.Context, teacherId string, settings interface{}) error {
 	settingsColl := dao.collection.Database().Collection("teacher_settings")
 
-	_, err := settingsColl.UpdateOne(
+	// 将 settings 转换为 bson.M 以便使用小写字段名
+	var settingsDoc bson.M
+	settingsBytes, err := bson.Marshal(settings)
+	if err != nil {
+		return err
+	}
+	err = bson.Unmarshal(settingsBytes, &settingsDoc)
+	if err != nil {
+		return err
+	}
+
+	// 转换为小写字段名
+	updateDoc := bson.M{
+		"teacherId":            teacherId,
+		"uisettings":           settingsDoc["uiSettings"],
+		"analysissettings":     settingsDoc["analysisSettings"],
+		"notificationsettings": settingsDoc["notificationSettings"],
+		"updatedAt":            time.Now(),
+	}
+
+	_, err = settingsColl.UpdateOne(
 		ctx,
 		bson.M{"teacherId": teacherId},
 		bson.M{
-			"$set": bson.M{
-				"teacherId": teacherId,
-				"settings":  settings,
-				"updatedAt": time.Now(),
-			},
+			"$set": updateDoc,
 			"$setOnInsert": bson.M{
 				"createdAt": time.Now(),
 			},
